@@ -63,7 +63,7 @@ add_compile_options(-fno-pic)
 add_link_options(-no-pie)
 
 option(BUILD_LIBUI "Build libui frontend" ON)
-option(BUILD_SDL "Build libui frontend" ON)
+option(BUILD_SDL "Build SDL frontend" ON)
 
 add_subdirectory(src)
 
@@ -71,7 +71,7 @@ if (BUILD_LIBUI)
 	add_subdirectory(src/libui_sdl)
 endif()
 
-if (BUILD_LIBUI)
+if (BUILD_SDL)
 	add_subdirectory(src/sdl)
 endif()
 
