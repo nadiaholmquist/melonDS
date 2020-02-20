@@ -186,15 +186,17 @@ void GPU2DNeon::ApplyColorEffect()
 
             uint8x16_t maskSpriteBlend1 = vceqzq_u8(vandq_u8(flag1, vdupq_n_u8(0x80)));
             uint8x16_t mask3DBlend1 = vceqzq_u8(vandq_u8(flag1, vdupq_n_u8(0x40)));
-            if (enableSpriteBlend && secondSrcBlend > 0)
+            if (enableSpriteBlend)
             {
                 flag1 = vbslq_u8(maskSpriteBlend1, flag1, vdupq_n_u8(0x10));
-                flag2 = vbslq_u8(vceqzq_u8(vandq_u8(flag2, vdupq_n_u8(0x80))), flag2, vdupq_n_u8(0x10));
+                if (secondSrcBlend > 0)
+                    flag2 = vbslq_u8(vceqzq_u8(vandq_u8(flag2, vdupq_n_u8(0x80))), flag2, vdupq_n_u8(0x10));
             }
-            if (enable3DBlend && secondSrcBlend > 0)
+            if (enable3DBlend)
             {
                 flag1 = vbslq_u8(mask3DBlend1, flag1, vdupq_n_u8(0x01));
-                flag2 = vbslq_u8(vceqzq_u8(vandq_u8(flag2, vdupq_n_u8(0x40))), flag2, vdupq_n_u8(0x01));
+                if (secondSrcBlend > 0)
+                    flag2 = vbslq_u8(vceqzq_u8(vandq_u8(flag2, vdupq_n_u8(0x40))), flag2, vdupq_n_u8(0x01));
             }
 
             uint8x16_t pixelsTarget1 = vceqzq_u8(vandq_u8(flag1, blendTargets1));

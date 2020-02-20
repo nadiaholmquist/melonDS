@@ -26,7 +26,6 @@
 namespace ARMJIT
 {
 
-//#define JIT_DEBUGPRINT(msg, ...) printf(msg, ## __VA_ARGS__)
 #define JIT_DEBUGPRINT(msg, ...)
 //#define JIT_DEBUGPRINT(msg, ...) printf(msg, ## __VA_ARGS__)
 
