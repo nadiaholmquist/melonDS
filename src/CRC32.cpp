@@ -18,6 +18,10 @@
 
 #include "CRC32.h"
 
+#ifdef __aarch64__
+#include <arm_acle.h>
+#endif
+
 // http://www.codeproject.com/KB/recipes/crc32_large.aspx
 
 u32 crctable[256];
@@ -54,6 +58,7 @@ void _inittable()
 
 u32 CRC32(u8 *data, int len)
 {
+#ifndef __aarch64__
     if (!tableinited)
     {
         _inittable();
@@ -64,6 +69,32 @@ u32 CRC32(u8 *data, int len)
 
 	while (len--)
         crc = (crc >> 8) ^ crctable[(crc & 0xFF) ^ *data++];
+#else
+    // see https://github.com/gonetz/GLideN64/blob/master/src/CRC32_ARMV8.cpp#L20
+    u32 crc = 0xFFFFFFFF;
+    u32 i = 0;
 
-	return (crc ^ 0xFFFFFFFF);
+    while (len >= 8)
+    {
+        crc = __crc32d(crc, *(u64*)&data[i]);
+        i += 8;
+        len -= 8;
+    }
+    if (len >= 4)
+    {
+        crc = __crc32w(crc, *(u32*)&data[i]);
+        i += 4;
+        len -= 4;
+    }
+    if (len >= 2)
+    {
+        crc = __crc32h(crc, *(u32*)&data[i]);
+        i += 2;
+        len -= 2;
+    }
+    if (len == 1)
+        crc = __crc32b(crc, *(u32*)&data[i]);
+#endif
+
+    return (crc ^ 0xFFFFFFFF);
 }
