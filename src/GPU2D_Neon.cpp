@@ -1437,8 +1437,8 @@ void GPU2DNeon::DrawBG_Affine(u32 line, u32 bgnum)
     u8* tilemapptr = GPU::GetBGCachePtr(Num, tilemapaddr, size);
     u8* tilesetptr = GPU::GetBGCachePtr(Num, tilesetaddr, 256 * 64);
     
-    int32x4_t dx = vmulq_s32(vdupq_n_s32(rotA), vdupq_n_s32(4));
-    int32x4_t dy = vmulq_s32(vdupq_n_s32(rotC), vdupq_n_s32(4));
+    int32x4_t dx = vshlq_n_s32(vdupq_n_s32(rotA), 2);
+    int32x4_t dy = vshlq_n_s32(vdupq_n_s32(rotC), 2);
 
     const int32x4_t factorDist = {0, 1, 2, 3};
     int32x4_t vecRotX = vaddq_s32(vdupq_n_s32(rotX), vmulq_s32(vdupq_n_s32(rotA), factorDist));
@@ -1526,8 +1526,8 @@ void GPU2DNeon::DrawBG_Extended(u32 line, u32 bgnum)
         rotY -= (BGMosaicY * rotD);
     }
 
-    int32x4_t dx = vmulq_s32(vdupq_n_s32(rotA), vdupq_n_s32(4));
-    int32x4_t dy = vmulq_s32(vdupq_n_s32(rotC), vdupq_n_s32(4));
+    int32x4_t dx = vshlq_n_s32(vdupq_n_s32(rotA), 2);
+    int32x4_t dy = vshlq_n_s32(vdupq_n_s32(rotC), 2);
 
     const int32x4_t factorDist = {0, 1, 2, 3};
     int32x4_t vecRotX = vaddq_s32(vdupq_n_s32(rotX), vmulq_s32(vdupq_n_s32(rotA), factorDist));
@@ -1687,7 +1687,7 @@ void GPU2DNeon::DrawBG_Extended(u32 line, u32 bgnum)
         }
         
         u8* tilemapptr = GPU::GetBGCachePtr(Num, tilemapaddr, size*2);
-        u8* tilesetptr = GPU::GetBGCachePtr(Num, tilesetaddr, 1024*2);
+        u8* tilesetptr = GPU::GetBGCachePtr(Num, tilesetaddr, 1024*64);
 
         uint16x8_t tilenumMask = vdupq_n_u16(0x3FF);
         uint16x8_t tileMask = vdupq_n_u16(7);
@@ -1729,7 +1729,7 @@ void GPU2DNeon::DrawBG_Extended(u32 line, u32 bgnum)
                 uint16x8_t rotYLo11 = vreinterpretq_u16_s16(vshrn_high_n_s32(
                         vshrn_n_s32(vecRotY, 11), tweenRotY, 11));
 
-                uint8x16_t overflow = vreinterpretq_u8_u16(vceqzq_u16(vandq_u16(vorrq_u16(rotXLo11, rotYLo11), vecOverflowMask))); \
+                uint8x16_t overflow = vreinterpretq_u8_u16(vceqzq_u16(vandq_u16(vorrq_u16(rotXLo11, rotYLo11), vecOverflowMask)));
                 overflow = vuzp1q_u8(overflow, overflow);
 
                 if (j == 0 || j == 1)
@@ -2483,8 +2483,8 @@ void GPU2DNeon::DrawSprite_Rotscale(u32 num, u32 boundwidth, u32 boundheight, u3
     s32 rotX = ((xoff-centerX) * rotA) + ((ypos-centerY) * rotB) + (width << 7);
     s32 rotY = ((xoff-centerX) * rotC) + ((ypos-centerY) * rotD) + (height << 7);
 
-    int32x4_t dx = vmulq_s32(vdupq_n_s32(rotA), vdupq_n_s32(4));
-    int32x4_t dy = vmulq_s32(vdupq_n_s32(rotC), vdupq_n_s32(4));
+    int32x4_t dx = vshlq_n_s32(vdupq_n_s32(rotA), 2);
+    int32x4_t dy = vshlq_n_s32(vdupq_n_s32(rotC), 2);
 
     const int32x4_t factorDist = {0, 1, 2, 3};
     int32x4_t vecRotX = vaddq_s32(vdupq_n_s32(rotX), vmulq_s32(vdupq_n_s32(rotA), factorDist));
