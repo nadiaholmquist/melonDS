@@ -10,6 +10,7 @@
 #include <string.h>
 #include <malloc.h>
 #include <dirent.h>
+#define _USE_MATH_DEFINES
 #include <math.h>
 
 #include <unordered_map>
@@ -48,13 +49,17 @@ int ScreenGap;
 int ScreenLayout;
 int ScreenSizing;
 
-bool Filtering;
+int IntegerScaling;
+
+int Filtering;
 
 char LastROMFolder[512];
 
 int SwitchOverclock;
 
 int DirectBoot;
+
+int GlobalRotation;
 
 ConfigEntry PlatformConfigFile[] =
 {
@@ -63,8 +68,10 @@ ConfigEntry PlatformConfigFile[] =
     {"ScreenLayout",   0, &ScreenLayout,   0, NULL, 0},
     {"ScreenSizing",   0, &ScreenSizing,   0, NULL, 0},
     {"Filtering",      0, &Filtering,      1, NULL, 0},
+    {"IntegerScaling", 0, &IntegerScaling, 0, NULL, 0},
+    {"GlobalRotation", 0, &GlobalRotation, 0, NULL, 0},
 
-    {"LastROMFolder", 1, LastROMFolder, 0, (char*)"sdmc:/", 511},
+    {"LastROMFolder", 1, LastROMFolder, 0, (char*)"/", 511},
 
     {"SwitchOverclock", 0, &SwitchOverclock, 0, NULL, 0},
 
@@ -76,10 +83,6 @@ ConfigEntry PlatformConfigFile[] =
 
 void InitEGL(NWindow* window)
 {
-    setenv("EGL_LOG_LEVEL", "debug", 1);
-    setenv("MESA_VERBOSE", "all", 1);
-    setenv("NOUVEAU_MESA_DEBUG", "1", 1);
-
     eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     
     eglInitialize(eglDisplay, NULL, NULL);
@@ -123,12 +126,6 @@ void DeInitEGL()
     eglTerminate(eglDisplay);
 }
 
-struct Vertex
-{
-    float position[2];
-    float uv[2];
-};
-
 void applyOverclock(bool usePCV, ClkrstSession* session, int setting)
 {
     const int clockSpeeds[] = { 1020000000, 1224000000, 1581000000, 1785000000 };
@@ -138,277 +135,8 @@ void applyOverclock(bool usePCV, ClkrstSession* session, int setting)
         clkrstSetClockRate(session, clockSpeeds[setting]);
 }
 
-float topX, topY, topWidth, topHeight, botX, botY, botWidth, botHeight;
-
-void updateScreenLayout(GLint vbo)
-{
-    int gapSizes[] = { 0, 1, 8, 64, 90, 128 };
-    float gap = gapSizes[Config::ScreenGap];
-
-    if (Config::ScreenLayout == 0) // Natural, choose based on rotation
-        Config::ScreenLayout = (Config::ScreenRotation % 2 == 0) ? 1 : 2;
-
-    if (Config::ScreenLayout == 1) // Vertical
-    {
-        if (Config::ScreenSizing == 0) // Even
-        {
-            topHeight = botHeight = 360 - gap / 2;
-            if (Config::ScreenRotation % 2 == 0)
-                topWidth = botWidth = topHeight * 4 / 3;
-            else
-                topWidth = botWidth = topHeight * 3 / 4;
-        }
-        else if (Config::ScreenSizing == 1) // Emphasize top
-        {
-            if (Config::ScreenRotation % 2 == 0) // 0, 180
-            {
-                botWidth = 256;
-                botHeight = 192;
-                topHeight = 720 - botHeight - gap;
-                topWidth = topHeight * 4 / 3;
-            }
-            else // 90, 270
-            {
-                botWidth = 192;
-                botHeight = 256;
-                topHeight = 720 - botHeight - gap;
-                topWidth = topHeight * 3 / 4;
-            }
-        }
-        else // Emphasize bottom
-        {
-            if (Config::ScreenRotation % 2 == 0) // 0, 180
-            {
-                topWidth = 256;
-                topHeight = 192;
-                botHeight = 720 - topHeight - gap;
-                botWidth = botHeight * 4 / 3;
-            }
-            else // 90, 270
-            {
-                botWidth = 192;
-                botHeight = 256;
-                topHeight = 720 - botHeight - gap;
-                topWidth = topHeight * 3 / 4;
-            }
-        }
-
-        topX = 640 - topWidth / 2;
-        botX = 640 - botWidth / 2;
-        topY = 0;
-        botY = 720 - botHeight;
-    }
-    else // Horizontal
-    {
-        if (Config::ScreenRotation % 2 == 0) // 0, 180
-        {
-            topWidth = botWidth = 640 - gap / 2;
-            topHeight = botHeight = topWidth * 3 / 4;
-            topX = 0;
-            botX = 1280 - topWidth;
-        }
-        else // 90, 270
-        {
-            topHeight = botHeight = 720;
-            topWidth = botWidth = topHeight * 3 / 4;
-            topX = 640 - topWidth - gap / 2;
-            botX = 640 + gap / 2;
-        }
-
-        topY = botY = 360 - topHeight / 2;
-
-        if (Config::ScreenSizing == 1) // Emphasize top
-        {
-            if (Config::ScreenRotation % 2 == 0) // 0, 180
-            {
-                botWidth = 256;
-                botHeight = 192;
-                topWidth = 1280 - botWidth - gap;
-                if (topWidth > 960)
-                    topWidth = 960;
-                topHeight = topWidth * 3 / 4;
-                topX = 640 - (botWidth + topWidth + gap) / 2;
-                botX = topX + topWidth + gap;
-                topY = 360 - topHeight / 2;
-                botY = topY + topHeight - botHeight;
-            }
-            else // 90, 270
-            {
-                botWidth = 192;
-                botHeight = 256;
-                topX += (topWidth - botWidth) / 2;
-                botX += (topWidth - botWidth) / 2;
-                botY = 720 - botHeight;
-            }
-        }
-        else if (Config::ScreenSizing == 2) // Emphasize bottom
-        {
-            if (Config::ScreenRotation % 2 == 0) // 0, 180
-            {
-                topWidth = 256;
-                topHeight = 192;
-                botWidth = 1280 - topWidth - gap;
-                if (botWidth > 960)
-                    botWidth = 960;
-                botHeight = botWidth * 3 / 4;
-                topX = 640 - (botWidth + topWidth + gap) / 2;
-                botX = topX + topWidth + gap;
-                botY = 360 - botHeight / 2;
-                topY = botY + botHeight - topHeight;
-            }
-            else // 90, 270
-            {
-                topWidth = 192;
-                topHeight = 256;
-                topX += (botWidth - topWidth) / 2;
-                botX -= (botWidth - topWidth) / 2;
-                topY = 720 - topHeight;
-            }
-        }
-    }
-
-    // Swap the top and bottom screens for 90 and 180 degrees
-    if (Config::ScreenRotation == 1 || Config::ScreenRotation == 2)
-    {
-        std::swap(topX, botX);
-        std::swap(topY, botY);
-        std::swap(topWidth, botWidth);
-        std::swap(topHeight, botHeight);
-    }
-
-    float scwidth, scheight;
-
-    float x0, y0, x1, y1;
-    float s0, s1, s2, s3;
-    float t0, t1, t2, t3;
-
-    Vertex GL_ScreenVertices[6 * 2];
-
-#define SETVERTEX(i, x, y, s, t) \
-    GL_ScreenVertices[i].position[0] = x; \
-    GL_ScreenVertices[i].position[1] = y; \
-    GL_ScreenVertices[i].uv[0] = s; \
-    GL_ScreenVertices[i].uv[1] = t;
-
-    x0 = topX;
-    y0 = topY;
-    x1 = topX + topWidth;
-    y1 = topY + topHeight;
-
-    scwidth = 256;
-    scheight = 192;
-
-    switch (Config::ScreenRotation)
-    {
-        case 0:
-            s0 = 0; t0 = 0;
-            s1 = scwidth; t1 = 0;
-            s2 = 0; t2 = scheight;
-            s3 = scwidth; t3 = scheight;
-            break;
-
-        case 1:
-            s0 = 0; t0 = scheight;
-            s1 = 0; t1 = 0;
-            s2 = scwidth; t2 = scheight;
-            s3 = scwidth; t3 = 0;
-            break;
-
-        case 2:
-            s0 = scwidth; t0 = scheight;
-            s1 = 0; t1 = scheight;
-            s2 = scwidth; t2 = 0;
-            s3 = 0; t3 = 0;
-            break;
-
-        default:
-            s0 = scwidth; t0 = 0;
-            s1 = scwidth; t1 = scheight;
-            s2 = 0; t2 = 0;
-            s3 = 0; t3 = scheight;
-            break;
-    }
-
-
-    SETVERTEX(0, x0, y0, s0, t0);
-    SETVERTEX(1, x1, y1, s3, t3);
-    SETVERTEX(2, x1, y0, s1, t1);
-    SETVERTEX(3, x0, y0, s0, t0);
-    SETVERTEX(4, x0, y1, s2, t2);
-    SETVERTEX(5, x1, y1, s3, t3);
-
-    x0 = botX;
-    y0 = botY;
-    x1 = botX + botWidth;
-    y1 = botY + botHeight;
-
-    scwidth = 256;
-    scheight = 192;
-
-    switch (Config::ScreenRotation)
-    {
-        case 0:
-            s0 = 0; t0 = 192;
-            s1 = scwidth; t1 = 192;
-            s2 = 0; t2 = 192 + scheight;
-            s3 = scwidth; t3 = 192 + scheight;
-            break;
-
-        case 1:
-            s0 = 0; t0 = 192 + scheight;
-            s1 = 0; t1 = 192;
-            s2 = scwidth; t2 = 192 + scheight;
-            s3 = scwidth; t3 = 192;
-            break;
-
-        case 2:
-            s0 = scwidth; t0 = 192 + scheight;
-            s1 = 0; t1 = 192 + scheight;
-            s2 = scwidth; t2 = 192;
-            s3 = 0; t3 = 192;
-            break;
-
-        default:
-            s0 = scwidth; t0 = 192;
-            s1 = scwidth; t1 = 192 + scheight;
-            s2 = 0; t2 = 192;
-            s3 = 0; t3 = 192 + scheight;
-            break;
-    }
-
-    SETVERTEX(6, x0, y0, s0, t0);
-    SETVERTEX(7, x1, y1, s3, t3);
-    SETVERTEX(8, x1, y0, s1, t1);
-    SETVERTEX(9, x0, y0, s0, t0);
-    SETVERTEX(10, x0, y1, s2, t2);
-    SETVERTEX(11, x1, y1, s3, t3);
-
-#undef SETVERTEX
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * 12, GL_ScreenVertices, GL_STATIC_DRAW);
-}
-
-const char* vtxShader = 
-    "#version 330 core\n"
-    "layout (location=0) in vec2 in_position;\n"
-    "layout (location=1) in vec2 in_uv;\n"
-    "out vec2 out_uv;\n"
-    "uniform mat4 proj;\n"
-    "uniform float uvshift;\n"
-    "void main() {\n"
-    "   gl_Position = proj * vec4(in_position, 0.0, 1.0);\n"
-    "   out_uv = in_uv / vec2(256.0, 192.0*2.0);\n"
-    "}";
-const char* frgShader =
-    "#version 330 core\n"
-    "out vec4 out_color;\n"
-    "in vec2 out_uv;\n"
-    "uniform sampler2D inTexture;"
-    "void main() {\n"
-    "   out_color = vec4(texture(inTexture, out_uv).bgr, 1.0);\n"
-    "}";
-
+// those matrix functions are copied from https://github.com/vurtun/mmx/blob/master/vec.h
+// distributed under the zlib license: https://github.com/vurtun/mmx/blob/master/vec.h#L68
 #define xv_zero_array(p,n) xv_zero_size(p, (n) * (int)sizeof((p)[0]))
 void xv_zero_size(void *ptr, int size)
 {
@@ -431,6 +159,9 @@ xm4_orthographic(float *m, float left, float right, float bottom, float top,
 }
 
 #define MMX_MEMCPY memcpy
+#define MMX_SIN sin
+#define MMX_COS cos
+
 void
 xm4_mul(float *product, const float *m1, const float *m2)
 {
@@ -461,6 +192,54 @@ xm4_mul(float *product, const float *m1, const float *m2)
 }
 
 void
+xm3_rotate(float *m, float angle, float X, float Y, float Z)
+{
+    #define M(col, row) m[(col*3)+row]
+#ifdef MMX_USE_DEGREES
+    float s = (float)MMX_SIN(MMX_DEG2RAD(angle));
+    float c = (float)MMX_COS(MMX_DEG2RAD(angle));
+#else
+    float s = (float)MMX_SIN(angle);
+    float c = (float)MMX_COS(angle);
+#endif
+    float oc = 1.0f - c;
+    M(0,0) = oc * X * X + c;
+    M(0,1) = oc * X * Y - Z * s;
+    M(0,2) = oc * Z * X + Y * s;
+
+    M(1,0) = oc * X * Y + Z * s;
+    M(1,1) = oc * Y * Y + c;
+    M(1,2) = oc * Y * Z - X * s;
+
+    M(2,0) = oc * Z * X - Y * s;
+    M(2,1) = oc * Y * Z + X * s;
+    M(2,2) = oc * Z * Z + c;
+    #undef M
+}
+
+void
+xm4_from_mat3(float *r, const float *m)
+{
+    #define M(col, row) r[(col<<2)+row]
+    #define T(col, row) m[(col*3)+row]
+    M(0,0) = T(0,0); M(0,1) = T(0,1); M(0,2) = T(0,2); M(0,3) = 0;
+    M(1,0) = T(1,0); M(1,1) = T(1,1); M(1,2) = T(1,2); M(1,3) = 0;
+    M(2,0) = T(2,0); M(2,1) = T(2,1); M(2,2) = T(2,2); M(2,3) = 0;
+    M(3,0) = 0; M(3,1) = 0; M(3,2) = 0; M(3,3) = 1;
+    #undef M
+    #undef T
+}
+
+void
+xm4_rotatef(float *m, float angle, float X, float Y, float Z)
+{
+    float t[9];
+    xm3_rotate(t, angle, X, Y, Z);
+    xm4_from_mat3(m, t);
+}
+
+#define xv2_cpy(to,from)    (to)[0]=(from)[0], (to)[1]=(from)[1]
+void
 xm4_scalev(float *m, float x, float y, float z)
 {
     #define M(col, row) m[(col<<2)+row]
@@ -471,6 +250,302 @@ xm4_scalev(float *m, float x, float y, float z)
     M(3,3) = 1.0f;
     #undef M
 }
+
+void
+xm2_mul(float *product, const float *m1, const float *m2)
+{
+    #define A(col, row) a[(col<<1)+row]
+    #define B(col, row) b[(col<<1)+row]
+    #define P(col, row) o[(col<<1)+row]
+
+    /* load */
+    float a[4], b[4], o[4];
+    MMX_MEMCPY(a, m1, sizeof(a));
+    MMX_MEMCPY(b, m2, sizeof(b));
+
+    /* calculate */
+    P(0,0) = A(0,0) * B(0,0) + A(0,1) * B(1,0);
+    P(0,1) = A(0,0) * B(0,1) + A(0,1) * B(1,1);
+    P(1,0) = A(1,0) * B(0,0) + A(1,1) * B(1,0);
+    P(1,1) = A(1,0) * B(0,1) + A(1,1) * B(1,1);
+
+    /* store */
+    MMX_MEMCPY(product, o, sizeof(o));
+
+    #undef A
+    #undef B
+    #undef P
+}
+
+
+void
+xm2_transform(float *r, const float *m, const float *vec)
+{
+    float v[2], o[2];
+    #define X(a) a[0]
+    #define Y(a) a[1]
+    #define M(col, row) m[(col<<1)+row]
+
+    xv2_cpy(v, vec);
+    X(o) = M(0,0)*X(v) + M(0,1)*Y(v);
+    Y(o) = M(1,0)*X(v) + M(1,1)*Y(v);
+    xv2_cpy(r, o);
+
+    #undef X
+    #undef Y
+    #undef M
+}
+
+void
+xm2_rotate(float *m, float angle)
+{
+    #define M(col, row) m[(col<<1)+row]
+#ifdef MMX_USE_DEGREES
+    float s = (float)MMX_SIN(MMX_DEG2RAD(angle));
+    float c = (float)MMX_COS(MMX_DEG2RAD(angle));
+#else
+    float s = (float)MMX_SIN(angle);
+    float c = (float)MMX_COS(angle);
+#endif
+    if (angle >= 0) {
+        M(0,0) =  c; M(0,1) = s;
+        M(1,0) = -s; M(1,1) = c;
+    } else {
+        M(0,0) =  c; M(0,1) = -s;
+        M(1,0) =  s; M(1,1) =  c;
+    }
+    #undef M
+}
+
+void
+xm2_scale(float *m, float x, float y)
+{
+    #define M(col, row) m[(col<<1)+row]
+    M(0,0) = x; M(0,1) = 0;
+    M(0,0) = 0; M(0,1) = y;
+    #undef M
+}
+
+
+struct Vertex
+{
+    float position[2];
+    float uv[2];
+};
+
+float botX, botY, botWidth, botHeight;
+int AutoScreenSizing = 0;
+
+void updateScreenLayout(GLint vbo, int screenWidth, int screenHeight)
+{
+    const Vertex verticesSingleScreen[] =
+    {
+        {-256.f/2, -192.f/2, 0.f, 0.f},
+        {-256.f/2, 192.f/2, 0.f, 0.5f},
+        {256.f/2, 192.f/2, 1.f, 0.5f},
+        {-256.f/2, -192.f/2, 0.f, 0.f},
+        {256.f/2, 192.f/2, 1.f, 0.5f},
+        {256.f/2, -192.f/2, 1.f, 0.f},
+    };
+
+    Vertex vertices[12];
+    memcpy(&vertices[0], verticesSingleScreen, sizeof(Vertex)*6);
+    memcpy(&vertices[6], verticesSingleScreen, sizeof(Vertex)*6);
+
+    int layout = Config::ScreenLayout == 0
+        ? ((Config::ScreenRotation % 2 == 0) ? 0 : 1)
+        : Config::ScreenLayout - 1;
+    int rotation = Config::ScreenRotation;
+
+    int sizing = Config::ScreenSizing == 3 ? AutoScreenSizing : Config::ScreenSizing;
+
+    {
+        float rotmat[4];
+        xm2_rotate(rotmat, M_PI_2 * rotation);
+        
+        for (int i = 0; i < 12; i++)
+            xm2_transform(vertices[i].position, rotmat, vertices[i].position);
+    }
+
+    // move screens apart
+    {
+        const float screenGaps[] = {0.f, 1.f, 8.f, 64.f, 90.f, 128.f};
+        int idx = layout == 0 ? 1 : 0;
+        float offset =
+            (((layout == 0 && (rotation % 2 == 0)) || (layout == 1 && (rotation % 2 == 1)) 
+                ? 192.f : 256.f)
+            + screenGaps[Config::ScreenGap]) / 2.f;
+        for (int i = 0; i < 6; i++)
+            vertices[i].position[idx] -= offset;
+        for (int i = 0; i < 6; i++)
+        {
+            vertices[i + 6].position[idx] += offset;
+            vertices[i + 6].uv[1] += 0.5f;
+        }
+    }
+
+    // scale
+    {
+        if (sizing == 0)
+        {
+            float minX = 100000.f, maxX = -100000.f;
+            float minY = 100000.f, maxY = -100000.f;
+
+            for (int i = 0; i < 12; i++)
+            {
+                minX = std::min(minX, vertices[i].position[0]);
+                minY = std::min(minY, vertices[i].position[1]);
+                maxX = std::max(maxX, vertices[i].position[0]);
+                maxY = std::max(maxY, vertices[i].position[1]);
+            }
+
+            float hSize = maxX - minX;
+            float vSize = maxY - minY;
+
+            // scale evenly
+            float scale = std::min(screenWidth / hSize, screenHeight / vSize);
+
+            if (Config::IntegerScaling)
+                scale = floor(scale);
+
+            for (int i = 0; i < 12; i++)
+            {
+                vertices[i].position[0] *= scale;
+                vertices[i].position[1] *= scale;
+            }
+        }
+        else
+        {
+            int primOffset = sizing == 1 ? 0 : 6;
+            int secOffset = sizing == 1 ? 6 : 0;
+
+            float primMinX = 100000.f, primMaxX = -100000.f;
+            float primMinY = 100000.f, primMaxY = -100000.f;
+            float secMinX = 100000.f, secMaxX = -100000.f;
+            float secMinY = 100000.f, secMaxY = -100000.f;
+
+            for (int i = 0; i < 6; i++)
+            {
+                primMinX = std::min(primMinX, vertices[i + primOffset].position[0]);
+                primMinY = std::min(primMinY, vertices[i + primOffset].position[1]);
+                primMaxX = std::max(primMaxX, vertices[i + primOffset].position[0]);
+                primMaxY = std::max(primMaxY, vertices[i + primOffset].position[1]);
+            }
+            for (int i = 0; i < 6; i++)
+            {
+                secMinX = std::min(secMinX, vertices[i + secOffset].position[0]);
+                secMinY = std::min(secMinY, vertices[i + secOffset].position[1]);
+                secMaxX = std::max(secMaxX, vertices[i + secOffset].position[0]);
+                secMaxY = std::max(secMaxY, vertices[i + secOffset].position[1]);
+            }
+
+            float primHSize = layout == 1 ? std::max(primMaxX, -primMinX) : primMaxX - primMinX;
+            float primVSize = layout == 0 ? std::max(primMaxY, -primMinY) : primMaxY - primMinY;
+
+            float secHSize = layout == 1 ? std::max(secMaxX, -secMinX) : secMaxX - secMinX;
+            float secVSize = layout == 0 ? std::max(secMaxY, -secMinY) : secMaxY - secMinY;
+
+            float primScale = std::min(screenWidth / primHSize, screenHeight / primVSize);
+            float secScale = 1.f;
+
+            if (layout == 0)
+            {
+                if (screenHeight - primVSize * primScale < secVSize)
+                    primScale = std::min((screenWidth - secHSize) / primHSize, (screenHeight - secVSize) / primVSize);
+                else
+                    secScale = std::min((screenHeight - primVSize * primScale) / secVSize, screenWidth / secHSize);
+            }
+            else
+            {
+                if (screenWidth - primHSize * primScale < secHSize)
+                    primScale = std::min((screenWidth - secHSize) / primHSize, (screenHeight - secVSize) / primVSize);
+                else
+                    secScale = std::min((screenWidth - primHSize * primScale) / secHSize, screenHeight / secVSize);
+            }
+
+            if (Config::IntegerScaling)
+                primScale = floor(primScale);
+            if (Config::IntegerScaling)
+                secScale = floor(secScale);
+
+            for (int i = 0; i < 6; i++)
+            {
+                vertices[i + primOffset].position[0] *= primScale;
+                vertices[i + primOffset].position[1] *= primScale;
+            }
+            for (int i = 0; i < 6; i++)
+            {
+                vertices[i + secOffset].position[0] *= secScale;
+                vertices[i + secOffset].position[1] *= secScale;
+            }
+        }
+    }
+
+    // position
+    {
+        float minX = 100000.f, maxX = -100000.f;
+        float minY = 100000.f, maxY = -100000.f;
+
+        for (int i = 0; i < 12; i++)
+        {
+            minX = std::min(minX, vertices[i].position[0]);
+            minY = std::min(minY, vertices[i].position[1]);
+            maxX = std::max(maxX, vertices[i].position[0]);
+            maxY = std::max(maxY, vertices[i].position[1]);
+        }
+
+        float width = maxX - minX;
+        float height = maxY - minY;
+
+        float botMaxX = -1000000.f, botMaxY = -1000000.f;
+        float botMinX = 1000000.f, botMinY = 1000000.f;
+        for (int i = 0; i < 12; i++)
+        {
+            vertices[i].position[0] = floor(vertices[i].position[0] - minX + screenWidth / 2 - width / 2);
+            vertices[i].position[1] = floor(vertices[i].position[1] - minY + screenHeight / 2 - height / 2);
+
+            if (i >= 6)
+            {
+                botMinX = std::min(vertices[i].position[0], botMinX);
+                botMinY = std::min(vertices[i].position[1], botMinY);
+                botMaxX = std::max(vertices[i].position[0], botMaxX);
+                botMaxY = std::max(vertices[i].position[1], botMaxY);
+            }
+        }
+
+        botX = botMinX;
+        botY = botMinY;
+        botWidth = botMaxX - botMinX;
+        botHeight = botMaxY - botMinY;
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * 12, vertices, GL_STATIC_DRAW);
+}
+
+const char* vtxShader = R"(
+    #version 330 core
+    layout (location=0) in vec2 in_position;
+    layout (location=1) in vec2 in_uv;
+    out vec2 out_uv;
+    uniform mat4 proj;
+    uniform mat2 texTransform;
+    void main()
+    {
+       gl_Position = proj * vec4(in_position, 0.0, 1.0);
+       out_uv = texTransform * in_uv;
+    }
+)";
+const char* frgShader = R"(
+    #version 330 core
+    out vec4 out_color;
+    in vec2 out_uv;
+    uniform sampler2D inTexture;
+    void main()
+    {
+       out_color = vec4(texture(inTexture, out_uv).xyz, 1.0);
+    }
+)";
 
 
 const u32 keyMappings[] = {
@@ -802,7 +877,7 @@ void audioOutput(void *args)
                     break;
                 }
             }
-            
+
             if (refillBuf)
             {
                 s16* data = (s16*)audMemPool + refillBuf->start_sample_offset * 2;
@@ -854,6 +929,152 @@ void onAppletHook(AppletHookType hook, void *param)
     }
 }
 
+// tbh idk why I even bother with C strings
+struct Filebrowser
+{
+    Filebrowser()
+    {
+        Entry entry;
+        entry.isDir = true;
+        entry.name = new char[3];
+        strcpy(entry.name, "..");
+        entries.push_back(entry);
+    }
+
+    ~Filebrowser()
+    {
+        delete[] entries[0].name;
+    }
+
+    void EnterDirectory(const char* path)
+    {
+        DIR* dir = opendir(path);
+        if (dir == NULL)
+        {
+            path = "/";
+            dir = opendir(path);
+        }
+
+        for (int i = 1; i < entries.size(); i++)
+            delete[] entries[i].name;
+        entries.resize(1);
+
+        strcpy(curdir, path);
+
+        curfile[0] = '\0';
+        entryselected = NULL;
+        struct dirent* cur;
+        while (cur = readdir(dir))
+        {
+            Entry entry;
+            int nameLen = strlen(cur->d_name);
+            if (nameLen == 1 && cur->d_name[0] == '.')
+                continue;
+            if (cur->d_type == DT_REG)
+            {
+                if (nameLen < 4)
+                    continue;
+                if (cur->d_name[nameLen - 4] != '.' 
+                    || cur->d_name[nameLen - 3] != 'n' 
+                    || cur->d_name[nameLen - 2] != 'd' 
+                    || cur->d_name[nameLen - 1] != 's')
+                    continue;
+
+                entry.name = new char[nameLen+1];
+                strcpy(entry.name, cur->d_name);
+                entry.isDir = false;
+            }
+            else if (cur->d_type == DT_DIR)
+            {
+                entry.name = new char[nameLen+1];
+                strcpy(entry.name, cur->d_name);
+                entry.isDir = true;
+            }
+            entries.push_back(entry);
+        }
+
+        closedir(dir);
+    }
+
+    void MoveIntoDirectory(const char* name)
+    {
+        int curpathlen = strlen(curdir);
+        if (curpathlen > 1)
+            curdir[curpathlen] = '/';
+        else
+            curpathlen = 0;
+        strcpy(curdir + curpathlen + 1, name);
+        EnterDirectory(curdir);
+    }
+    void MoveUpwards()
+    {
+        int len = strlen(curdir);
+        if (len > 1)
+        {
+            for (int i = len - 1; i >= 0; i--)
+            {
+                if (curdir[i] == '/')
+                {
+                    if (i == 0)
+                        curdir[i + 1] = '\0';
+                    else
+                        curdir[i] = '\0';
+                    break;
+                }
+            }
+            EnterDirectory(curdir);
+        }
+    }
+
+    void Draw()
+    {
+        if (ImGui::BeginCombo("Browse files", curfile[0] == '\0' ? curdir : curfile))
+        {
+            for (int i = 0; i < entries.size(); i++)
+            {
+                ImGui::PushID(entries[i].name);
+                if (ImGui::Selectable(entries[i].name, entryselected == entries[i].name))
+                {
+                    if (entries[i].isDir)
+                    {
+                        if (i == 0)
+                            MoveUpwards();
+                        else
+                            MoveIntoDirectory(entries[i].name);
+                    }
+                    else
+                    {
+                        entryselected = entries[i].name;
+                        strcpy(curfile, curdir);
+                        int dirlen = strlen(curdir);
+                        curfile[dirlen] = '/';
+                        strcpy(curfile + dirlen + 1, entries[i].name);
+                    }
+                }
+                ImGui::PopID();
+            }
+            ImGui::EndCombo();
+        }
+    }
+
+    bool HasFileSelected()
+    {
+        return entryselected != NULL;
+    }
+
+    struct Entry
+    {
+        char* name;
+        bool isDir;
+    };
+    int curItemsCount;
+    std::vector<Entry> entries;
+    char curdir[256];
+    char curfile[256];
+    char* entryselected;
+};
+
+
 const int clockSpeeds[] = { 1020000000, 1224000000, 1581000000, 1785000000 };
 
 int main(int argc, char* argv[])
@@ -887,6 +1108,19 @@ int main(int argc, char* argv[])
 
     loadMicSample();
 
+    int screenWidth, screenHeight;
+
+    if (Config::GlobalRotation % 2 == 0)
+    {
+        screenWidth = 1280;
+        screenHeight = 720;
+    }
+    else
+    {
+        screenWidth = 720;
+        screenHeight = 1280;
+    }
+
     usePCV = hosversionBefore(8, 0, 0);
     if (usePCV)
     {
@@ -911,28 +1145,56 @@ int main(int argc, char* argv[])
 
     ImGui_ImplOpenGL3_Init();
 
+    GLuint screenFB;
+    glGenFramebuffers(1, &screenFB);
+    glBindFramebuffer(GL_FRAMEBUFFER, screenFB);
+    GLuint guiTextures[2];
+    glGenTextures(2, guiTextures);
+    glBindTexture(GL_TEXTURE_2D, guiTextures[0]);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 2048, 2048, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glBindTexture(GL_TEXTURE_2D, guiTextures[1]);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16, 2048, 2048, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, guiTextures[0], 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, guiTextures[1], 0);
+    assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
     GLuint vao;
     glGenVertexArrays(1, &vao);
     glBindVertexArray(vao);
+    
+    glEnableVertexAttribArray(0);
+    glVertexAttribBinding(0, 0);
+    glVertexAttribFormat(0, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, position));
+    glEnableVertexAttribArray(1);
+    glVertexAttribBinding(1, 0);
+    glVertexAttribFormat(1, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, uv));
 
     GLuint vtxBuffer;
     glGenBuffers(1, &vtxBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, vtxBuffer);
-    updateScreenLayout(vtxBuffer);
+    updateScreenLayout(vtxBuffer, screenWidth, screenHeight);
 
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(offsetof(Vertex, position)));
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(offsetof(Vertex, uv)));
-    glEnableVertexAttribArray(1);
+    const Vertex fullscreenQuadVertices[] = {
+        {-1.f, -1.f, 0.f, 0.f}, {1.f, -1.f, 1.f, 0.f}, {1.f, 1.f, 1.f, 1.f},
+        {-1.f, -1.f, 0.f, 0.f}, {1.f, 1.f, 1.f, 1.f}, {-1.f, 1.f, 0.f, 1.f}};
+    GLuint fullscreenQuad;
+    glGenBuffers(1, &fullscreenQuad);
+    glBindBuffer(GL_ARRAY_BUFFER, fullscreenQuad);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex)*6, fullscreenQuadVertices, GL_STATIC_DRAW);
 
     GLuint shaders[3];
-    GLint projectionUniformLoc = -1, textureUniformLoc = -1, uvShiftUniformLoc = -1;
+    GLint projectionUniformLoc = -1, textureUniformLoc = -1, texTransformUniformLoc = -1;
     if (!OpenGL_BuildShaderProgram(vtxShader, frgShader, shaders, "GUI"))
         printf("ahhh shaders didn't compile!!!\n");
     OpenGL_LinkShaderProgram(shaders);
 
     projectionUniformLoc = glGetUniformLocation(shaders[2], "proj");
     textureUniformLoc = glGetUniformLocation(shaders[2], "inTexture");
+    texTransformUniformLoc = glGetUniformLocation(shaders[2], "texTransform");
 
     GLuint screenTexture;
     glGenTextures(1, &screenTexture);
@@ -940,6 +1202,9 @@ int main(int argc, char* argv[])
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, Config::Filtering ? GL_LINEAR : GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, Config::Filtering ? GL_LINEAR : GL_NEAREST);
     glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 256, 192 * 2);
+    // swap red and blue channel
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_BLUE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED);
 
     Thread audioThread;
     setupAudio();
@@ -989,40 +1254,14 @@ int main(int argc, char* argv[])
 
     std::vector<std::pair<u32, u32>> jitFreqResults;
 
-    char* romNames[100];
-    memset(romNames, 0, sizeof(romNames));
-    char* curSelectedRom = NULL;
-    char* romFullpath = NULL;
+    Filebrowser filebrowser;
+    filebrowser.EnterDirectory(Config::LastROMFolder);
     char* romSramPath = NULL;
-    int romsCount = 0;
-    {
-        DIR* dir = opendir("/roms/ds");
-        
-        int i = 0;
-        struct dirent* cur;
-        while (i++ < 100 && (cur = readdir(dir)))
-        {
-            if (cur->d_type == DT_REG)
-            {
-                int nameLen = strlen(cur->d_name);
-                if (nameLen < 4)
-                    continue;
-                if (cur->d_name[nameLen - 4] != '.' 
-                    || cur->d_name[nameLen - 3] != 'n' 
-                    || cur->d_name[nameLen - 2] != 'd' 
-                    || cur->d_name[nameLen - 1] != 's')
-                    continue;
-                romNames[romsCount] = new char[nameLen + 1];
-                strcpy(romNames[romsCount], cur->d_name);
-                romsCount++;
-            }
-        }
-
-        closedir(dir);
-    }
 
     bool lidClosed = false;
     u32 microphoneState = 0;
+
+    int mainScreenPos[3];
 
     while (appletMainLoop())
     {
@@ -1051,7 +1290,7 @@ int main(int argc, char* argv[])
 
         {
             ImGuiIO& io = ImGui::GetIO();
-            io.DisplaySize = ImVec2(1280.f, 720.f);
+            io.DisplaySize = ImVec2(screenWidth, screenHeight);
             io.MouseDown[0] = false;
 
             if (!navInput)
@@ -1102,34 +1341,43 @@ int main(int argc, char* argv[])
                 touchPosition pos;
                 hidTouchRead(&pos, 0);
 
+                float rotatedTouch[2];
+                switch (Config::GlobalRotation)
+                {
+                case 0: rotatedTouch[0] = pos.px; rotatedTouch[1] = pos.py; break;
+                case 1: rotatedTouch[0] = pos.py; rotatedTouch[1] = 1280.f - pos.px; break;
+                case 2: rotatedTouch[0] = 1280.f - pos.px; rotatedTouch[1] = 720.f - pos.py; break;
+                case 3: rotatedTouch[0] = 720.f - pos.py; rotatedTouch[1] = pos.px; break;
+                }
+
                 if (showGui)
                 {
-                    io.MousePos = ImVec2((float)pos.px, (float)pos.py);
+                    io.MousePos = ImVec2(rotatedTouch[0], rotatedTouch[1]);
                     io.MouseDown[0] = true;
                 }
 
-                if (!io.WantCaptureMouse && pos.px >= botX && pos.px < (botX + botWidth) && pos.py >= botY && pos.py < (botY + botHeight))
+                if (!io.WantCaptureMouse && rotatedTouch[0] >= botX && rotatedTouch[0] < (botX + botWidth) && rotatedTouch[1] >= botY && rotatedTouch[1] < (botY + botHeight))
                 {
                     int x, y;
                     if (Config::ScreenRotation == 0) // 0
                     {
-                        x = (pos.px - botX) * 256.0f / botWidth;
-                        y = (pos.py - botY) * 256.0f / botWidth;
+                        x = (rotatedTouch[0] - botX) * 256.0f / botWidth;
+                        y = (rotatedTouch[1] - botY) * 256.0f / botWidth;
                     }
                     else if (Config::ScreenRotation == 1) // 90
                     {
-                        x =       (pos.py - botY) * 192.0f / botWidth;
-                        y = 192 - (pos.px - botX) * 192.0f / botWidth;
+                        x = (rotatedTouch[1] - botY) * -192.0f / botWidth;
+                        y = (rotatedTouch[0] - botX) *  192.0f / botWidth;
                     }
                     else if (Config::ScreenRotation == 2) // 180
                     {
-                        x =       (pos.px - botX) * -256.0f / botWidth;
-                        y = 192 - (pos.py - botY) *  256.0f / botWidth;
+                        x =       (rotatedTouch[0] - botX) * -256.0f / botWidth;
+                        y = 192 - (rotatedTouch[1] - botY) *  256.0f / botWidth;
                     }
                     else // 270
                     {
-                        x = (pos.py - botY) * -192.0f / botWidth;
-                        y = (pos.px - botX) *  192.0f / botWidth;
+                        x =       (rotatedTouch[1] - botY) * 192.0f / botWidth;
+                        y = 192 - (rotatedTouch[0] - botX) * 192.0f / botWidth;
                     }
                     NDS::PressKey(16 + 6);
                     NDS::TouchScreen(x, y);
@@ -1147,10 +1395,12 @@ int main(int argc, char* argv[])
             }
         }
 
+        glBindFramebuffer(GL_FRAMEBUFFER, screenFB);
+
         ImGui_ImplOpenGL3_NewFrame();
         ImGui::NewFrame();
 
-        glViewport(0, 0, 1280, 720);
+        glViewport(0, 0, screenWidth, screenHeight);
         glClearColor(0, 0, 0, 1);
         glClear(GL_COLOR_BUFFER_BIT);
 
@@ -1167,6 +1417,33 @@ int main(int argc, char* argv[])
             u64 frameStartTime = armGetSystemTick();
             NDS::RunFrame();
             u64 frameEndTime = armGetSystemTick();
+
+            {
+                mainScreenPos[2] = mainScreenPos[1];
+                mainScreenPos[1] = mainScreenPos[0];
+                mainScreenPos[0] = NDS::PowerControl9 >> 15;
+                int guess;
+                if (mainScreenPos[0] == mainScreenPos[2] &&
+                    mainScreenPos[0] != mainScreenPos[1])
+                {
+                    // constant flickering, likely displaying 3D on both screens
+                    // TODO: when both screens are used for 2D only...???
+                    guess = 0;
+                }
+                else
+                {
+                    if (mainScreenPos[0] == 1)
+                        guess = 1;
+                    else
+                        guess = 2;
+                }
+
+                if (guess != AutoScreenSizing)
+                {
+                    AutoScreenSizing = guess;
+                    updateScreenLayout(vtxBuffer, screenWidth, screenHeight);
+                }
+            }
 
             profiler::Frame();
 
@@ -1254,34 +1531,20 @@ int main(int argc, char* argv[])
         {
             if (ImGui::Begin("Select rom..."))
             {
-                if (ImGui::BeginCombo("File", curSelectedRom ? curSelectedRom : "Selected a rom"))
-                {
-                    for (int i = 0; i < romsCount; i++)
-                    {
-                        ImGui::PushID(romNames[i]);
-                        if (ImGui::Selectable(romNames[i], curSelectedRom == romNames[i]))
-                            curSelectedRom = romNames[i];
-                        ImGui::PopID();
-                    }
-                    ImGui::EndCombo();
-                }
+                filebrowser.Draw();
 
-                if (ImGui::Button("Load!") && curSelectedRom)
+                if (filebrowser.HasFileSelected() && ImGui::Button("Load!"))
                 {
-                    const int romPrefixLen = strlen("/roms/ds/");
-                    int romNameLen = strlen(curSelectedRom);
-                    int romFullpathLen = romPrefixLen + romNameLen;
-                    romFullpath = new char[romFullpathLen + 1];
-                    strcpy(romFullpath, "/roms/ds/");
-                    strcpy(romFullpath + romPrefixLen, curSelectedRom);
-                    romSramPath = new char[romFullpathLen + 4 + 1];
-                    strcpy(romSramPath, romFullpath);
-                    romSramPath[romFullpathLen + 0] = '.';
-                    romSramPath[romFullpathLen + 1] = 's';
-                    romSramPath[romFullpathLen + 2] = 'a';
-                    romSramPath[romFullpathLen + 3] = 'v';
-                    romSramPath[romFullpathLen + 4] = '\0';
-                    NDS::LoadROM(romFullpath, romSramPath, Config::DirectBoot);
+                    AutoScreenSizing = 0;
+                    memset(mainScreenPos, 0, sizeof(int)*3);
+
+                    int romNameLen = strlen(filebrowser.curfile);
+                    if (romSramPath)
+                        delete[] romSramPath;
+                    romSramPath = new char[romNameLen + 4 + 1];
+                    strcpy(romSramPath, filebrowser.curfile);
+                    strcpy(romSramPath + romNameLen, ".sav");
+                    NDS::LoadROM(filebrowser.curfile, romSramPath, Config::DirectBoot);
 
                     if (perfRecordMode == 1)
                         perfRecord = fopen("melonds_perf", "wb");
@@ -1301,6 +1564,24 @@ int main(int argc, char* argv[])
 
             if (ImGui::Begin("Settings"))
             {
+                int globalRotation = Config::GlobalRotation;
+                ImGui::Combo("Global rotation", &globalRotation, "0°\0" "90°\0" "180°\0" "270°\0");
+                if (globalRotation != Config::GlobalRotation)
+                {
+                    Config::GlobalRotation = globalRotation;
+                    if (Config::GlobalRotation % 2 == 0)
+                    {
+                        screenWidth = 1280;
+                        screenHeight = 720;
+                    }
+                    else
+                    {
+                        screenWidth = 720;
+                        screenHeight = 1280;
+                    }
+                    updateScreenLayout(vtxBuffer, screenWidth, screenHeight);
+                }
+
                 bool directBoot = Config::DirectBoot;
                 ImGui::Checkbox("Boot games directly", &directBoot);
                 Config::DirectBoot = directBoot;
@@ -1355,15 +1636,19 @@ int main(int argc, char* argv[])
             glBindVertexArray(vao);
             glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
 
+            glBindVertexBuffer(0, vtxBuffer, 0, sizeof(Vertex));
+
+            glBindTexture(GL_TEXTURE_2D, screenTexture);
             for (int i = 0; i < 2; i++)
             {
-                glBindTexture(GL_TEXTURE_2D, screenTexture);
                 glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 192 * i, 256, 192, GL_RGBA, GL_UNSIGNED_BYTE, GPU::Framebuffer[GPU::FrontBuffer][i]);
             }
             glUniform1i(textureUniformLoc, 0);
             float proj[16];
-            xm4_orthographic(proj, 0.f, 1280.f, 720.f, 0.f, 1.f, -1.f);
+            xm4_orthographic(proj, 0.f, screenWidth, screenHeight, 0.f, -1.f, 1.f);
+            float texTransform[4] = {1.f, 0.f, 0.f, 1.f,};
             glUniformMatrix4fv(projectionUniformLoc, 1, GL_FALSE, proj);
+            glUniformMatrix2fv(texTransformUniformLoc, 1, GL_FALSE, texTransform);
             glDrawArrays(GL_TRIANGLES, 0, 12);
 
             glBindVertexArray(0);
@@ -1399,11 +1684,11 @@ int main(int argc, char* argv[])
                     bool displayDirty = false;
 
                     int newSizing = Config::ScreenSizing;
-                    ImGui::Combo("Screen Sizing", &newSizing, "Even\0Emphasise top\0Emphasise bottom\0");
+                    ImGui::Combo("Screen Sizing", &newSizing, "Even\0Emphasise top\0Emphasise bottom\0Auto\0");
                     displayDirty |= newSizing != Config::ScreenSizing;
 
                     int newRotation = Config::ScreenRotation;
-                    const char* rotations[] = {"0", "90", "180", "270"};
+                    const char* rotations[] = {"0°", "90°", "180°", "270°"};
                     ImGui::Combo("Screen Rotation", &newRotation, rotations, 4);
                     displayDirty |= newRotation != Config::ScreenRotation;
 
@@ -1416,14 +1701,19 @@ int main(int argc, char* argv[])
                     ImGui::Combo("Screen Layout", &newLayout, "Natural\0Vertical\0Horizontal\0");
                     displayDirty |= newLayout != Config::ScreenLayout;
 
+                    bool newIntegerScale = Config::IntegerScaling;
+                    ImGui::Checkbox("Integer Scaling", &newIntegerScale);
+                    displayDirty |= newIntegerScale != Config::IntegerScaling;
+
                     if (displayDirty)
                     {
                         Config::ScreenSizing = newSizing;
                         Config::ScreenRotation = newRotation;
                         Config::ScreenGap = newGap;
                         Config::ScreenLayout = newLayout;
+                        Config::IntegerScaling = newIntegerScale;
 
-                        updateScreenLayout(vtxBuffer);
+                        updateScreenLayout(vtxBuffer, screenWidth, screenHeight);
                     }
 
                     bool newFiltering = Config::Filtering;
@@ -1446,7 +1736,7 @@ int main(int argc, char* argv[])
                         NDS::SetLidClosed(lidClosed);
                     if (ImGui::Button("Reset"))
                     {
-                        NDS::LoadROM(romFullpath, romSramPath, true);
+                        NDS::LoadROM(filebrowser.curfile, romSramPath, true);
 
                         if (perfRecord)
                         {
@@ -1477,6 +1767,32 @@ int main(int argc, char* argv[])
 
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        glViewport(0, 0, 1280, 720);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        {
+            glBindVertexArray(vao);
+
+            OpenGL_UseShaderProgram(shaders);
+
+            glBindTexture(GL_TEXTURE_2D, guiTextures[0]);
+            glUniform1i(textureUniformLoc, 0);
+            float proj[16];
+            float texTransform[4] = {screenWidth/2048.f, 0.f, 0.f, screenHeight/2048.f};
+            xm4_orthographic(proj, -1.f, 1.f, -1.f, 1.f, -1.f, 1.f);
+            float rot[16];
+            xm4_rotatef(rot, M_PI_2 * Config::GlobalRotation, 0.f, 0.f, 1.f);
+            xm4_mul(proj, proj, rot);
+            glUniformMatrix4fv(projectionUniformLoc, 1, GL_FALSE, proj);
+            glUniformMatrix2fv(texTransformUniformLoc, 1, GL_FALSE, texTransform);
+            glBindVertexBuffer(0, fullscreenQuad, 0, sizeof(Vertex));
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+
+            glBindVertexArray(0);
+        }
+
         eglSwapBuffers(eglDisplay, eglSurface);
     }
 
@@ -1488,15 +1804,12 @@ int main(int argc, char* argv[])
 
     NDS::DeInit();
 
+    strcpy(Config::LastROMFolder, filebrowser.curdir);
+
     Config::Save();
 
     if (romSramPath)
         delete[] romSramPath;
-    if (romFullpath)
-        delete[] romFullpath;
-
-    for (int i = 0; i < romsCount; i++)
-        delete[] romNames[i];
 
     running = false;
     threadWaitForExit(&audioThread);
