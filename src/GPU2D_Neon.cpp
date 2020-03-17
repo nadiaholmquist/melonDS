@@ -57,6 +57,15 @@
             * bit 5-7: source (same as BGOBJLine)
 */
 
+#define unroll8(n, body) \
+    { const int n = 0; body } \
+    { const int n = 1; body } \
+    { const int n = 2; body } \
+    { const int n = 3; body } \
+    { const int n = 4; body } \
+    { const int n = 5; body } \
+    { const int n = 6; body } \
+    { const int n = 7; body }
 #define unroll4(n, body) \
     { const int n = 0; body } \
     { const int n = 1; body } \
@@ -543,11 +552,11 @@ void GPU2DNeon::PalettiseRange(u32 start)
             vzip2q_u8(vandq_u8(pixels.val[0], paletted), vandq_u8(pixels.val[1], paletted)));
 
         uint16x8_t colorsLo;
-        for (int i = 0; i < 8; i++)
-            colorsLo = vld1q_lane_u16((u16*)&GPU::Palette[indices0[i] * 2], colorsLo, i);
+        unroll8(i,
+            colorsLo = vld1q_lane_u16((u16*)&GPU::Palette[indices0[i] * 2], colorsLo, i);)
         uint16x8_t colorsHi;
-        for (int i = 0; i < 8; i++)
-            colorsHi = vld1q_lane_u16((u16*)&GPU::Palette[indices1[i] * 2], colorsHi, i);
+        unroll8(i,
+            colorsHi = vld1q_lane_u16((u16*)&GPU::Palette[indices1[i] * 2], colorsHi, i);)
 
         uint8x16_t red = vandq_u8(vshlq_n_u8(vuzp1q_u8(vreinterpretq_u8_u16(colorsLo), vreinterpretq_u8_u16(colorsHi)), 1), colorMask);
         uint8x16_t green = vandq_u8(vshrn_high_n_u16(vshrn_n_u16(colorsLo, 4), colorsHi, 4), colorMask);
@@ -1456,8 +1465,7 @@ void GPU2DNeon::DrawBG_Affine(u32 line, u32 bgnum)
 
         uint8x16_t moveMask;
 
-        for (int j = 0; j < 4; j++)
-        {
+        unroll4(j,
             int32x4_t offset = vaddq_s32(
                 vshlq_s32(vshrq_n_s32(vandq_s32(vecRotY, vecCoordmask), 11), vecYShift),
                 vshrq_n_s32(vandq_s32(vecRotX, vecCoordmask), 11));
@@ -1481,14 +1489,11 @@ void GPU2DNeon::DrawBG_Affine(u32 line, u32 bgnum)
 
             vecRotX = vaddq_s32(vecRotX, dx);
             vecRotY = vaddq_s32(vecRotY, dy);
-        }
+        )
 
         uint8x16_t pixels;
-        for (int j = 0; j < 4; j++)
-        {
-            for (int k = 0; k < 4; k++)
-                pixels = vld1q_lane_u8(tilesetptr + tileoff.val[j][k], pixels, j * 4 + k);
-        }
+        unroll4(j,
+            unroll4(k, pixels = vld1q_lane_u8(tilesetptr + tileoff.val[j][k], pixels, j * 4 + k);))
 
         uint8x16_t windowMask = vceqzq_u8(vandq_u8(vld1q_u8(&WindowMask[8 + i]), vdupq_n_u8(1 << bgnum)));
 
@@ -1579,8 +1584,7 @@ void GPU2DNeon::DrawBG_Extended(u32 line, u32 bgnum)
                 uint8x16x2_t colors;
                 uint8x16_t moveMask;
 
-                for (int j = 0; j < 4; j++)
-                {
+                unroll4(j,
                     uint8x16_t overflow = vreinterpretq_u8_u32(vandq_u32(
                         vceqzq_s32(vandq_s32(vecRotX, vecOfxMask)), vceqzq_s32(vandq_s32(vecRotY, vecOfyMask))));
                     moveMask = vreinterpretq_u8_u32(vsetq_lane_u32(
@@ -1593,12 +1597,12 @@ void GPU2DNeon::DrawBG_Extended(u32 line, u32 bgnum)
                             vshrq_n_s32(vandq_s32(vecRotX, vecXMask), 8)),
                         1);
 
-                    for (int k = 0; k < 4; k++)
-                        colors = vld2q_lane_u8(tilemapptr + offset[k], colors, j * 4 + k);
+                    unroll4(k,
+                        colors = vld2q_lane_u8(tilemapptr + offset[k], colors, j * 4 + k);)
 
                     vecRotX = vaddq_s32(vecRotX, dx);
                     vecRotY = vaddq_s32(vecRotY, dy);
-                }
+                )
 
                 uint8x16_t windowMask = vceqzq_u8(vandq_u8(vld1q_u8(&WindowMask[8 + i]), vdupq_n_u8(1 << bgnum)));
                 moveMask = vornq_u8(
@@ -1627,8 +1631,7 @@ void GPU2DNeon::DrawBG_Extended(u32 line, u32 bgnum)
                 uint8x16_t pixels;
                 uint8x16_t moveMask;
 
-                for (int j = 0; j < 4; j++)
-                {
+                unroll4(j,
                     uint8x16_t overflow = vreinterpretq_u8_u32(vandq_u32(
                         vceqzq_s32(vandq_s32(vecRotX, vecOfxMask)), vceqzq_s32(vandq_s32(vecRotY, vecOfyMask))));
                     moveMask = vreinterpretq_u8_u32(vsetq_lane_u32(
@@ -1639,12 +1642,12 @@ void GPU2DNeon::DrawBG_Extended(u32 line, u32 bgnum)
                             vshlq_s32(vshrq_n_s32(vandq_s32(vecRotY, vecYMask), 8), vecYShift), 
                             vshrq_n_s32(vandq_s32(vecRotX, vecXMask), 8));
 
-                    for (int k = 0; k < 4; k++)
-                        pixels = vld1q_lane_u8(tilemapptr + offset[k], pixels, j * 4 + k);
+                    unroll4(k,
+                        pixels = vld1q_lane_u8(tilemapptr + offset[k], pixels, j * 4 + k);)
 
                     vecRotX = vaddq_s32(vecRotX, dx);
                     vecRotY = vaddq_s32(vecRotY, dy);
-                }
+                )
 
                 uint8x16_t windowMask = vceqzq_u8(vandq_u8(vld1q_u8(&WindowMask[8 + i]), vdupq_n_u8(1 << bgnum)));
                 moveMask = vornq_u8(vorrq_u8(windowMask, vceqzq_u8(pixels)), moveMask);
@@ -1747,8 +1750,8 @@ void GPU2DNeon::DrawBG_Extended(u32 line, u32 bgnum)
                     vshlq_u16(vandq_u16(rotYLo11, vecCoordMask), vecYShift));
 
                 uint16x8_t tiles;
-                for (int k = 0; k < 8; k++)
-                    tiles = vld1q_lane_u16((u16*)(tilemapptr + offset[k] * 2), tiles, k);
+                unroll8(k,
+                    tiles = vld1q_lane_u16((u16*)(tilemapptr + offset[k] * 2), tiles, k);)
 
                 extpalIndex.val[j >> 1] = vreinterpretq_u8_u64(vsetq_lane_u64(
                         // shrn doesn't work with 12-bit shifts (for some reason)
@@ -1776,14 +1779,10 @@ void GPU2DNeon::DrawBG_Extended(u32 line, u32 bgnum)
             )
 
             uint8x16_t pixels0, pixels1;
-            for (int j = 0; j < 2; j++)
-            {
-                for (int k = 0; k < 8; k++)
-                {
+            unroll2(j, unroll8(k,
                     pixels0 = vld1q_lane_u8(tilesetptr + tileoff.val[j][k], pixels0, j * 8 + k);
                     pixels1 = vld1q_lane_u8(tilesetptr + tileoff.val[j + 2][k], pixels1, j * 8 + k);
-                }
-            }
+            ))
 
             uint8x16x2_t windowMask = vld1q_u8_x2(&WindowMask[i + 8]);
 
@@ -1879,8 +1878,7 @@ void GPU2DNeon::DrawBG_Large(u32 line)
         uint8x16_t pixels;
         uint8x16_t moveMask;
 
-        for (int j = 0; j < 4; j++)
-        {
+        unroll4(j,
             uint8x16_t overflow = vreinterpretq_u8_u32(vandq_u32(
                 vceqzq_s32(vandq_s32(vecRotX, vecOfxMask)), vceqzq_s32(vandq_s32(vecRotY, vecOfyMask))));
             moveMask = vreinterpretq_u8_u32(vsetq_lane_u32(
@@ -1891,12 +1889,11 @@ void GPU2DNeon::DrawBG_Large(u32 line)
                     vshlq_s32(vshrq_n_s32(vandq_s32(vecRotY, vecYMask), 8), vecYShift), 
                     vshrq_n_s32(vandq_s32(vecRotX, vecXMask), 8));
 
-            for (int k = 0; k < 4; k++)
-                pixels = vld1q_lane_u8(tilemapptr + offset[k], pixels, j * 4 + k);
+            unroll4(k, pixels = vld1q_lane_u8(tilemapptr + offset[k], pixels, j * 4 + k);)
 
             vecRotX = vaddq_s32(vecRotX, dx);
             vecRotY = vaddq_s32(vecRotY, dy);
-        }
+        )
 
         uint8x16_t windowMask = vceqzq_u8(vandq_u8(vld1q_u8(&WindowMask[8 + i]), vdupq_n_u8(0x4)));
         moveMask = vornq_u8(vorrq_u8(windowMask, vceqzq_u8(pixels)), moveMask);
@@ -2578,11 +2575,8 @@ void GPU2DNeon::DrawSprite_Rotscale(u32 num, u32 boundwidth, u32 boundheight, u3
             )
 
             uint8x16x2_t pixels;
-            for (int j = 0; j < 2; j++)
-            {
-                for (int k = 0; k < 8; k++)
-                    pixels = vld2q_lane_u8(pixelsptr + offsets.val[j][k], pixels, j * 8 + k);
-            }
+            unroll2(j, unroll8(k,
+                    pixels = vld2q_lane_u8(pixelsptr + offsets.val[j][k], pixels, j * 8 + k);))
 
             moveMask = vorrq_u8(vceqzq_u8(vandq_u8(pixels.val[1], vdupq_n_u8(0x80))), moveMask);
 
@@ -2617,8 +2611,7 @@ void GPU2DNeon::DrawSprite_Rotscale(u32 num, u32 boundwidth, u32 boundheight, u3
             vecRotY = vaddq_s32(tweenRotY, dy);
 
             uint8x8x2_t pixels;
-            for (int j = 0; j < 8; j++)
-                pixels = vld2_lane_u8(pixelsptr + offsets[j], pixels, j);
+            unroll8(j, pixels = vld2_lane_u8(pixelsptr + offsets[j], pixels, j);)
 
             uint8x8_t moveMask = vorr_u8(vceqz_u8(vand_u8(pixels.val[1], vdup_n_u8(0x80))), moveMask);
 
@@ -2720,11 +2713,9 @@ void GPU2DNeon::DrawSprite_Rotscale(u32 num, u32 boundwidth, u32 boundheight, u3
                 )
 
                 uint8x16_t pixels;
-                for (int j = 0; j < 2; j++)
-                {
-                    for (int k = 0; k < 8; k++)
+                unroll2(j, unroll8(k,
                         pixels = vld1q_lane_u8(pixelsptr + offsets.val[j][k], pixels, j * 8 + k);
-                }
+                ))
 
                 moveMask = vorrq_u8(vceqzq_u8(pixels), moveMask);
 
@@ -2761,8 +2752,8 @@ void GPU2DNeon::DrawSprite_Rotscale(u32 num, u32 boundwidth, u32 boundheight, u3
                 vecRotY = vaddq_s32(tweenRotY, dy);
 
                 uint8x8_t pixels;
-                for (int j = 0; j < 8; j++)
-                    pixels = vld1_lane_u8(pixelsptr + offsets[j], pixels, j);
+                unroll8(j,
+                    pixels = vld1_lane_u8(pixelsptr + offsets[j], pixels, j);)
 
                 uint8x8_t moveMask = vorr_u8(vceqz_u8(pixels), vmovn_u16(outsideBounds));
 
@@ -2835,11 +2826,10 @@ void GPU2DNeon::DrawSprite_Rotscale(u32 num, u32 boundwidth, u32 boundheight, u3
                 )
 
                 uint8x16_t pixels;
-                for (int j = 0; j < 2; j++)
-                {
-                    for (int k = 0; k < 8; k++)
+                unroll2(j,
+                    unroll8(k,
                         pixels = vld1q_lane_u8(pixelsptr + offsets.val[j][k], pixels, j * 8 + k);
-                }
+                ))
                 pixels = vbslq_u8(evenPixel, vshrq_n_u8(vshlq_n_u8(pixels, 4), 4), vshrq_n_u8(pixels, 4));
 
                 moveMask = vorrq_u8(vceqzq_u8(pixels), moveMask);
@@ -2881,8 +2871,7 @@ void GPU2DNeon::DrawSprite_Rotscale(u32 num, u32 boundwidth, u32 boundheight, u3
                 vecRotY = vaddq_s32(tweenRotY, dy);
 
                 uint8x8_t pixels;
-                for (int j = 0; j < 8; j++)
-                    pixels = vld1_lane_u8(pixelsptr + offsets[j], pixels, j);
+                unroll8(j, pixels = vld1_lane_u8(pixelsptr + offsets[j], pixels, j);)
                 pixels = vbsl_u8(evenPixel, vshr_n_u8(vshl_n_u8(pixels, 4), 4), vshr_n_u8(pixels, 4));
 
                 uint8x8_t moveMask = vorr_u8(vceqz_u8(pixels), vmovn_u16(outsideBounds));
