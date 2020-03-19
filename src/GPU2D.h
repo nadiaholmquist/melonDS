@@ -19,7 +19,17 @@
 #ifndef GPU2D_H
 #define GPU2D_H
 
+<<<<<<< HEAD
 #include "types.h"
+=======
+#include "Savestate.h"
+
+class GPU2D
+{
+public:
+    GPU2D(u32 num);
+    ~GPU2D();
+>>>>>>> origin/sdl
 
 #include "Savestate.h"
 
