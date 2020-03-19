@@ -1841,8 +1841,8 @@ int main(int argc, char* argv[])
     appletUnhook(&aptCookie);
     appletUnlockExit();
 
-    //close(nxlinkSocket);
 #ifdef GDB_ENABLED
+    close(nxlinkSocket);
     socketExit();
     //GDBStub_Shutdown();
 #endif

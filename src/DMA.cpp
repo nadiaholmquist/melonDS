@@ -266,18 +266,38 @@ void DMA::Run9()
             }*/
         }
 
-        while (IterCount > 0 && !Stall)
+        PROFILER_COUNTER(dmaCalls)
+
+        if (IsGXFIFODMA)
         {
-            NDS::ARM9Timestamp += (unitcycles << NDS::ARM9ClockShift);
+            u32 count = (NDS::ARM9Target - NDS::ARM9Timestamp) / (unitcycles << NDS::ARM9ClockShift);
+            count = std::min<u32>(count, 1);
+            count = std::max<u32>(count, IterCount);
 
-            NDS::ARM9Write32(CurDstAddr, NDS::ARM9Read32(CurSrcAddr));
+            u32 written = GPU3D::WriteBatchToGXFIFO((u32*)&NDS::MainRAM[CurSrcAddr & (MAIN_RAM_SIZE - 1)], count);
+            
+            NDS::ARM9Timestamp += (unitcycles << NDS::ARM9ClockShift) * written;
+            IterCount -= written;
+            RemCount -= written;
+            CurSrcAddr += (written * SrcAddrInc) << 2;
+        }
+        else
+        {
+            while (IterCount > 0 && !Stall)
+            {
+                NDS::ARM9Timestamp += (unitcycles << NDS::ARM9ClockShift);
 
-            CurSrcAddr += SrcAddrInc<<2;
-            CurDstAddr += DstAddrInc<<2;
-            IterCount--;
-            RemCount--;
+                NDS::ARM9Write32(CurDstAddr, NDS::ARM9Read32(CurSrcAddr));
 
-            if (NDS::ARM9Timestamp >= NDS::ARM9Target) break;
+                CurSrcAddr += SrcAddrInc<<2;
+                CurDstAddr += DstAddrInc<<2;
+                IterCount--;
+                RemCount--;
+
+                PROFILER_COUNTER(DmaCopiedOther)
+
+                if (NDS::ARM9Timestamp >= NDS::ARM9Target) break;
+            }
         }
     }
 
@@ -311,8 +331,6 @@ void DMA::Run9()
 void DMA::Run7()
 {
     if (NDS::ARM7Timestamp >= NDS::ARM7Target) return;
-
-    PROFILER_SECTION(dma7)
 
     Executing = true;
 
@@ -405,7 +423,6 @@ void DMA::Run7()
             NDS::ResumeCPU(1, 1<<Num);
         }
 
-        PROFILER_END_SECTION
         return;
     }
 
@@ -418,6 +435,4 @@ void DMA::Run7()
     Running = 0;
     InProgress = false;
     NDS::ResumeCPU(1, 1<<Num);
-
-    PROFILER_END_SECTION
 }
