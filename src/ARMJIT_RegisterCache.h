@@ -24,11 +24,7 @@ public:
     {
         for (int i = 0; i < 16; i++)
             Mapping[i] = (Reg)-1;
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> origin/sdl
         PCAllocatableAsSrc = ~(pcAllocatableAsSrc
             ? 0
             : (1 << 15));
@@ -101,23 +97,6 @@ public:
     }
 
     BitSet32 GetPushRegs()
-<<<<<<< HEAD
-=======
-    {
-        BitSet16 used;
-        for (int i = 0; i < InstrsCount; i++)
-            used |= BitSet16(Instrs[i].Info.SrcRegs | Instrs[i].Info.DstRegs);
-
-        BitSet32 res;
-        u32 registersMax = std::min((int)used.Count(), NativeRegsAvailable);
-        for (int i = 0; i < registersMax; i++)
-            res |= BitSet32(1 << (int)NativeRegAllocOrder[i]);
-
-        return res;
-    }
-
-	void Prepare(bool thumb, int i)
->>>>>>> origin/sdl
     {
         BitSet16 used;
         for (int i = 0; i < InstrsCount; i++)
