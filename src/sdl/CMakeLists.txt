@@ -8,6 +8,8 @@ add_executable(melonDS-sdl
 	EmuWindow.cpp
 	Platform.cpp
 	PlatformConfig.cpp
+	InputDialog.cpp
+	Emulator.cpp
 )
 
 find_package(PkgConfig REQUIRED)

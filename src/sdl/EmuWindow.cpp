@@ -4,13 +4,15 @@
 
 #include "../types.h"
 #include "EmuWindow.h"
+#include "PlatformConfig.h"
 
 EmuWindow::EmuWindow() :
 	window(), gl_window(), rend(), emu_texture(), fullscreen()
 {
+	auto scale = Config::default_scale;
 	window = SDL_CreateWindow(
 		"melonDS", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-		256, 384, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL
+		256 * scale, 384 * scale, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN
 	);
 
 	SDL_SetWindowMinimumSize(window, 256, 384);
@@ -31,6 +33,10 @@ EmuWindow::~EmuWindow() {
 	SDL_DestroyTexture(emu_texture);
 	SDL_DestroyRenderer(rend);
 	SDL_DestroyWindow(window);
+}
+
+auto EmuWindow::show() -> void {
+	SDL_ShowWindow(window);
 }
 
 void EmuWindow::render() {
@@ -85,4 +91,9 @@ auto EmuWindow::get_content_size(int& w, int& h) -> void {
 
 auto EmuWindow::set_integer_size(u32 factor) -> void {
 	SDL_SetWindowSize(window, 256 * factor, 384 * factor);
+}
+
+auto EmuWindow::has_focus() -> bool {
+	auto flags = SDL_GetWindowFlags(window);
+	return flags & SDL_WINDOW_INPUT_FOCUS;
 }
