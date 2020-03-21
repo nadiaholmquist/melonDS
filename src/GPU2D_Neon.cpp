@@ -171,6 +171,8 @@ inline void RGB5ToRGB6(uint8x16_t lo, uint8x16_t hi, uint8x16_t& red, uint8x16_t
 template <bool enableSpriteBlend, bool enable3DBlend, int secondSrcBlend>
 void GPU2DNeon::ApplyColorEffect()
 {
+    PROFILER_SECTION(applyColorEffect)
+
     uint8x16_t blendTargets1 = vdupq_n_u8(BlendCnt);
     uint8x16_t blendTargets2 = vdupq_n_u8(BlendCnt >> 8);
 
@@ -266,6 +268,8 @@ void GPU2DNeon::ApplyColorEffect()
             vst4q_u8((u8*)&BGOBJLine[8 + j * 16 + i], bgobjline);
         )
     }
+
+    PROFILER_END_SECTION
 }
 
 void GPU2DNeon::EnsurePaletteCoherent()
@@ -538,6 +542,8 @@ void GPU2DNeon::DrawScanline(u32 line)
 
 void GPU2DNeon::PalettiseRange(u32 start)
 {
+    PROFILER_SECTION(palettiseRange)
+
     uint8x16_t colorMask = vdupq_n_u8(0x1F << 1);
     uint8x16_t bitmapBit = vdupq_n_u8(1 << 7);
     for (int i = 0; i < 256; i += 16)
@@ -572,11 +578,15 @@ void GPU2DNeon::PalettiseRange(u32 start)
 
         vst4q_u8((u8*)&BGOBJLine[i + start], result);
     }
+
+    PROFILER_END_SECTION
 }
 
 void GPU2DNeon::DrawScanline_BGOBJ(u32 line)
 {
     BGExtPalUsed = 0;
+
+    PROFILER_SECTION(BGOBJ)
 
     if (DispCnt & (1<<7))
     {
@@ -613,6 +623,8 @@ void GPU2DNeon::DrawScanline_BGOBJ(u32 line)
     case 6: DrawScanlineBGMode6(line); break;
     case 7: DrawScanlineBGMode7(line); break;
     }
+
+    PROFILER_END_SECTION
 
     EnsurePaletteCoherent();
 
@@ -888,6 +900,8 @@ void GPU2DNeon::DoCapture(u32 line, u32 width)
     dstaddr &= 0xFFFF;
     srcBaddr &= 0xFFFF;
 
+    PROFILER_SECTION(doCapture)
+
     switch ((CaptureCnt >> 29) & 0x3)
     {
     case 0: // source A
@@ -1099,6 +1113,8 @@ void GPU2DNeon::DoCapture(u32 line, u32 width)
         }
         break;
     }
+
+    PROFILER_END_SECTION
 }
 
 template<bool mosaic>

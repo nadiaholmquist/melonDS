@@ -12,12 +12,27 @@ namespace profiler
 {
 
 std::vector<Section*> sections;
+std::vector<Counter*> counters;
 std::vector<Section*> stack;
 
 int frames = 0;
 
-Section::Section(const char* name): name_(name)
+Counter::Counter(const char* name) : name_(name)
 {}
+
+Section::Section(const char* name) : name_(name)
+{}
+
+void Counter::Execute()
+{
+    if (!registered_)
+    {
+        counters.push_back(this);
+        registered_ = true;
+    }
+
+    hit_++;
+}
 
 void Section::Enter()
 {
@@ -61,6 +76,17 @@ void Frame()
         sections[i]->LastHit = sections[i]->Hit();
         sections[i]->Reset();
     }
+    for (int i = 0; i < counters.size(); i++)
+    {
+        counters[i]->HistoryMax = 0.f;
+        for (int j = 0; j < 31; j++)
+        {
+            counters[i]->HistoryMax = std::max(counters[i]->HistoryMax, counters[i]->History[j + 1]);
+            counters[i]->History[j] = counters[i]->History[j + 1];
+        }
+        counters[i]->History[31] = counters[i]->Hit();
+        counters[i]->Reset();
+    }
 }
 
 void Render()
@@ -72,6 +98,18 @@ void Render()
             if(ImGui::TreeNode(sections[i]->Name(), "%s: %fms hit %dx", sections[i]->Name(), sections[i]->History[31], sections[i]->LastHit))
             {
                 ImGui::PlotHistogram("History", sections[i]->History, 32, 0, NULL, 0.f, 15.f, ImVec2(0, 50.f));
+                ImGui::TreePop();
+            }
+        }
+        ImGui::TreePop();
+    }
+    if (ImGui::TreeNode("Counters"))
+    {
+        for (int i = 0; i < counters.size(); i++)
+        {
+            if(ImGui::TreeNode(counters[i]->Name(), "%s: %fx", counters[i]->Name(), counters[i]->History[31]))
+            {
+                ImGui::PlotHistogram("History", counters[i]->History, 32, 0, NULL, 0.f, counters[i]->HistoryMax, ImVec2(0, 50.f));
                 ImGui::TreePop();
             }
         }
