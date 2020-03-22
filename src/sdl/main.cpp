@@ -8,7 +8,6 @@
 #include "ConfPath.h"
 #include "Emulator.h"
 
-#include "../Config.h"
 #include "PlatformConfig.h"
 
 #include "InputDialog.h"
@@ -17,6 +16,7 @@ Emulator* emulator;
 InputDialog* input_dialog;
 
 void audio_callback(void* data, Uint8* stream, int len) {
+	(void) data;
 	emulator->read_audio((s16*)stream, len>>2);
 }
 
@@ -52,7 +52,6 @@ int main(int argc, char** argv) {
 	}
 
 	SDL_Event e;
-	bool paused = false;
 
 	//SDL_Thread* emu = SDL_CreateThread(emu_thread, "melonDS emulator thread", NULL);
 	FPSmanager fps;
@@ -83,7 +82,7 @@ int main(int argc, char** argv) {
 				case SDL_QUIT:
 					emulator->stop();
 					break;
-				case SDL_KEYDOWN:
+				case SDL_KEYUP:
 					if (input_dialog != NULL) {
 						input_dialog->key(e.key.keysym.sym);
 						if (input_dialog->is_done()) {
@@ -97,6 +96,8 @@ int main(int argc, char** argv) {
 						input_dialog = new InputDialog();
 						break;
 					}
+					emulator->queue_event(e);
+					break;
 				default: {
 					emulator->queue_event(e);
 					break;
