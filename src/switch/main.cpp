@@ -375,6 +375,8 @@ void updateScreenLayout(GLint vbo, int screenWidth, int screenHeight)
             (((layout == 0 && (rotation % 2 == 0)) || (layout == 1 && (rotation % 2 == 1)) 
                 ? 192.f : 256.f)
             + screenGaps[Config::ScreenGap]) / 2.f;
+        if (rotation >= 2)
+            offset *= -1.f;
         for (int i = 0; i < 6; i++)
             vertices[i].position[idx] -= offset;
         for (int i = 0; i < 6; i++)
@@ -1295,11 +1297,52 @@ int main(int argc, char* argv[])
 
             if (!navInput)
             {
+                u32 rotatedKeyMappings[12];
+                memcpy(rotatedKeyMappings, keyMappings, 4*12);
+                switch (Config::ScreenRotation)
+                {
+                    case 0: // nothing needs to be handled
+                        break;
+                    case 1: // 90 degrees
+                        rotatedKeyMappings[4] = keyMappings[6]; // right -> up
+                        rotatedKeyMappings[5] = keyMappings[7]; // left -> down
+                        rotatedKeyMappings[6] = keyMappings[5]; // up -> left
+                        rotatedKeyMappings[7] = keyMappings[4]; // down -> right
+
+                        rotatedKeyMappings[0] = keyMappings[10]; // X -> A
+                        rotatedKeyMappings[1] = keyMappings[0]; // A -> B
+                        rotatedKeyMappings[10] = keyMappings[11]; // X -> Y
+                        rotatedKeyMappings[11] = keyMappings[1]; // Y -> B
+                        break;
+                    case 2: // 180 degrees
+                        rotatedKeyMappings[4] = keyMappings[5]; // right -> left
+                        rotatedKeyMappings[5] = keyMappings[4]; // left -> right
+                        rotatedKeyMappings[6] = keyMappings[7]; // up -> down
+                        rotatedKeyMappings[7] = keyMappings[6]; // down -> up
+
+                        rotatedKeyMappings[0] = keyMappings[11]; // Y -> A
+                        rotatedKeyMappings[1] = keyMappings[10]; // X -> B
+                        rotatedKeyMappings[10] = keyMappings[1]; // B -> X
+                        rotatedKeyMappings[11] = keyMappings[0]; // A -> Y
+                        break;
+                    case 3: // 270 degrees
+                        rotatedKeyMappings[4] = keyMappings[7]; // right -> down
+                        rotatedKeyMappings[5] = keyMappings[6]; // left -> up
+                        rotatedKeyMappings[6] = keyMappings[4]; // up -> right
+                        rotatedKeyMappings[7] = keyMappings[5]; // down -> left
+
+                        rotatedKeyMappings[0] = keyMappings[1]; // A -> B
+                        rotatedKeyMappings[1] = keyMappings[11]; // B -> Y
+                        rotatedKeyMappings[10] = keyMappings[0]; // X -> A
+                        rotatedKeyMappings[11] = keyMappings[10]; // Y -> X
+                        break;
+                }
+
                 for (int i = 0; i < 12; i++)
                 {
-                    if (keysDown & keyMappings[i])
+                    if (keysDown & rotatedKeyMappings[i])
                         NDS::PressKey(i > 9 ? i + 6 : i);
-                    if (keysUp & keyMappings[i])
+                    if (keysUp & rotatedKeyMappings[i])
                         NDS::ReleaseKey(i > 9 ? i + 6 : i);
                 }
 
@@ -1683,6 +1726,10 @@ int main(int argc, char* argv[])
                 {
                     bool displayDirty = false;
 
+                    int globalRotation = Config::GlobalRotation;
+                    ImGui::Combo("Global rotation", &globalRotation, "0°\0" "90°\0" "180°\0" "270°\0");
+                    displayDirty |= globalRotation != Config::GlobalRotation;
+
                     int newSizing = Config::ScreenSizing;
                     ImGui::Combo("Screen Sizing", &newSizing, "Even\0Emphasise top\0Emphasise bottom\0Auto\0");
                     displayDirty |= newSizing != Config::ScreenSizing;
@@ -1707,6 +1754,18 @@ int main(int argc, char* argv[])
 
                     if (displayDirty)
                     {
+                        Config::GlobalRotation = globalRotation;
+                        if (Config::GlobalRotation % 2 == 0)
+                        {
+                            screenWidth = 1280;
+                            screenHeight = 720;
+                        }
+                        else
+                        {
+                            screenWidth = 720;
+                            screenHeight = 1280;
+                        }
+
                         Config::ScreenSizing = newSizing;
                         Config::ScreenRotation = newRotation;
                         Config::ScreenGap = newGap;

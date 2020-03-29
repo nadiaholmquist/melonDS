@@ -151,10 +151,10 @@ typedef union
 
 } CmdFIFOEntry;
 
-FIFO<CmdFIFOEntry>* CmdFIFO;
-FIFO<CmdFIFOEntry>* CmdPIPE;
+FIFO<CmdFIFOEntry, 256> CmdFIFO;
+FIFO<CmdFIFOEntry, 4> CmdPIPE;
 
-FIFO<CmdFIFOEntry>* CmdStallQueue;
+FIFO<CmdFIFOEntry, 64> CmdStallQueue;
 
 u32 NumCommands, CurCommand, ParamCount, TotalParams;
 
@@ -277,11 +277,6 @@ u32 FlushAttributes;
 
 bool Init()
 {
-    CmdFIFO = new FIFO<CmdFIFOEntry>(256);
-    CmdPIPE = new FIFO<CmdFIFOEntry>(4);
-
-    CmdStallQueue = new FIFO<CmdFIFOEntry>(64);
-
     Renderer = -1;
     // SetRenderer() will be called to set it up later
 
@@ -292,11 +287,6 @@ void DeInit()
 {
     if (Renderer == 0) SoftRenderer::DeInit();
     else               GLRenderer::DeInit();
-
-    delete CmdFIFO;
-    delete CmdPIPE;
-
-    delete CmdStallQueue;
 }
 
 void ResetRenderingState()
@@ -320,10 +310,10 @@ void ResetRenderingState()
 
 void Reset()
 {
-    CmdFIFO->Clear();
-    CmdPIPE->Clear();
+    CmdFIFO.Clear();
+    CmdPIPE.Clear();
 
-    CmdStallQueue->Clear();
+    CmdStallQueue.Clear();
 
     NumCommands = 0;
     CurCommand = 0;
@@ -399,8 +389,8 @@ void DoSavestate(Savestate* file)
 {
     file->Section("GP3D");
 
-    CmdFIFO->DoSavestate(file);
-    CmdPIPE->DoSavestate(file);
+    CmdFIFO.DoSavestate(file);
+    CmdPIPE.DoSavestate(file);
 
     file->Var32(&NumCommands);
     file->Var32(&CurCommand);
@@ -576,7 +566,7 @@ void DoSavestate(Savestate* file)
     if (file->IsAtleastVersion(2, 1))
     {
         // command stall queue, only in version 2.1 and up
-        CmdStallQueue->DoSavestate(file);
+        CmdStallQueue.DoSavestate(file);
         file->Var32((u32*)&VertexPipeline);
         file->Var32((u32*)&NormalPipeline);
         file->Var32((u32*)&PolygonPipeline);
@@ -587,7 +577,7 @@ void DoSavestate(Savestate* file)
     {
         // for version 2.0, just clear it. not having it doesn't matter
         // if this comes from older melonDS revisions.
-        CmdStallQueue->Clear();
+        CmdStallQueue.Clear();
         VertexPipeline = 0;
         NormalPipeline = 0;
         PolygonPipeline = 0;
@@ -1818,24 +1808,24 @@ void VecTest(u32* params)
 
 bool CmdFIFOWrite(CmdFIFOEntry& entry)
 {
-    if (CmdFIFO->IsEmpty() && !CmdPIPE->IsFull())
+    if (CmdFIFO.IsEmpty() && !CmdPIPE.IsFull())
     {
-        CmdPIPE->Write(entry);
+        CmdPIPE.Write(entry);
     }
     else
     {
-        if (CmdFIFO->IsFull())
+        if (CmdFIFO.IsFull())
         {
             // store it to the stall queue. stall the system.
             // worst case is if a STMxx opcode causes this, which is why our stall queue
             // has 64 entries. this is less complicated than trying to make STMxx stall-able.
 
-            CmdStallQueue->Write(entry);
+            CmdStallQueue.Write(entry);
             NDS::GXFIFOStall();
             return true;
         }
 
-        CmdFIFO->Write(entry);
+        CmdFIFO.Write(entry);
     }
 
     GXStat |= (1<<27);
@@ -1856,27 +1846,27 @@ bool CmdFIFOWrite(CmdFIFOEntry& entry)
 
 CmdFIFOEntry CmdFIFORead()
 {
-    CmdFIFOEntry ret = CmdPIPE->Read();
+    CmdFIFOEntry ret = CmdPIPE.Read();
 
-    if (CmdPIPE->Level() <= 2)
+    if (CmdPIPE.Level() <= 2)
     {
-        if (!CmdFIFO->IsEmpty())
-            CmdPIPE->Write(CmdFIFO->Read());
-        if (!CmdFIFO->IsEmpty())
-            CmdPIPE->Write(CmdFIFO->Read());
+        if (!CmdFIFO.IsEmpty())
+            CmdPIPE.Write(CmdFIFO.Read());
+        if (!CmdFIFO.IsEmpty())
+            CmdPIPE.Write(CmdFIFO.Read());
 
         // empty stall queue if needed
         // CmdFIFO should not be full at this point.
-        if (!CmdStallQueue->IsEmpty())
+        if (!CmdStallQueue.IsEmpty())
         {
-            while (!CmdStallQueue->IsEmpty())
+            while (!CmdStallQueue.IsEmpty())
             {
-                if (CmdFIFO->IsFull()) break;
-                CmdFIFOEntry entry = CmdStallQueue->Read();
+                if (CmdFIFO.IsFull()) break;
+                CmdFIFOEntry entry = CmdStallQueue.Read();
                 CmdFIFOWrite(entry);
             }
 
-            if (CmdStallQueue->IsEmpty())
+            if (CmdStallQueue.IsEmpty())
                 NDS::GXFIFOUnstall();
         }
 
@@ -1895,7 +1885,7 @@ void ExecuteCommand()
 
     CmdFIFOEntry entry = CmdFIFORead();
 
-    //printf("FIFO: processing %02X %08X. Levels: FIFO=%d, PIPE=%d\n", entry.Command, entry.Param, CmdFIFO->Level(), CmdPIPE->Level());
+    //printf("FIFO: processing %02X %08X. Levels: FIFO=%d, PIPE=%d\n", entry.Command, entry.Param, CmdFIFO.Level(), CmdPIPE.Level());
 
     // each FIFO entry takes 1 cycle to be processed
     // commands (presumably) run when all the needed parameters have been read
@@ -2508,7 +2498,7 @@ void FinishWork(s32 cycles)
 void Run()
 {
     if (!GeometryEnabled || FlushRequest ||
-        (CmdPIPE->IsEmpty() && !(GXStat & (1<<27))))
+        (CmdPIPE.IsEmpty() && !(GXStat & (1<<27))))
     {
         Timestamp = NDS::ARM9Timestamp >> NDS::ARM9ClockShift;
         return;
@@ -2522,7 +2512,7 @@ void Run()
 
     if (CycleCount <= 0)
     {
-        while (CycleCount <= 0 && !CmdPIPE->IsEmpty())
+        while (CycleCount <= 0 && !CmdPIPE.IsEmpty())
         {
             if (NumPushPopCommands == 0) GXStat &= ~(1<<14);
             if (NumTestCommands == 0)    GXStat &= ~(1<<0);
@@ -2531,7 +2521,7 @@ void Run()
         }
     }
 
-    if (CycleCount <= 0 && CmdPIPE->IsEmpty())
+    if (CycleCount <= 0 && CmdPIPE.IsEmpty())
     {
         if (GXStat & (1<<27)) FinishWork(-CycleCount);
         else                  CycleCount = 0;
@@ -2549,8 +2539,8 @@ void CheckFIFOIRQ()
     bool irq = false;
     switch (GXStat >> 30)
     {
-    case 1: irq = (CmdFIFO->Level() < 128); break;
-    case 2: irq = CmdFIFO->IsEmpty(); break;
+    case 1: irq = (CmdFIFO.Level() < 128); break;
+    case 2: irq = CmdFIFO.IsEmpty(); break;
     }
 
     if (irq) NDS::SetIRQ(0, NDS::IRQ_GXFIFO);
@@ -2559,7 +2549,7 @@ void CheckFIFOIRQ()
 
 void CheckFIFODMA()
 {
-    if (CmdFIFO->Level() < 128)
+    if (CmdFIFO.Level() < 128)
         NDS::CheckDMAs(0, 0x07);
 }
 
@@ -2775,7 +2765,7 @@ u8 Read8(u32 addr)
         {
             Run();
 
-            u32 fifolevel = CmdFIFO->Level();
+            u32 fifolevel = CmdFIFO.Level();
 
             return fifolevel & 0xFF;
         }
@@ -2783,7 +2773,7 @@ u8 Read8(u32 addr)
         {
             Run();
 
-            u32 fifolevel = CmdFIFO->Level();
+            u32 fifolevel = CmdFIFO.Level();
 
             return ((GXStat >> 24) & 0xFF) |
                    (fifolevel >> 8) |
@@ -2818,7 +2808,7 @@ u16 Read16(u32 addr)
         {
             Run();
 
-            u32 fifolevel = CmdFIFO->Level();
+            u32 fifolevel = CmdFIFO.Level();
 
             return (GXStat >> 16) |
                    fifolevel |
@@ -2854,7 +2844,7 @@ u32 Read32(u32 addr)
         {
             Run();
 
-            u32 fifolevel = CmdFIFO->Level();
+            u32 fifolevel = CmdFIFO.Level();
 
             return GXStat |
                    ((PosMatrixStackPointer & 0x1F) << 8) |

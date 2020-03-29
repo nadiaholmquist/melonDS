@@ -21,20 +21,17 @@
 
 #include "types.h"
 
-template<typename T>
+template<typename T, int NumEntries>
 class FIFO
 {
 public:
-    FIFO(u32 num)
+    FIFO()
     {
-        NumEntries = num;
-        Entries = new T[num];
         Clear();
     }
 
     ~FIFO()
     {
-        delete[] Entries;
     }
 
 
@@ -94,8 +91,7 @@ public:
     bool IsFull() { return NumOccupied >= NumEntries; }
 
 private:
-    u32 NumEntries;
-    T* Entries;
+    T Entries[NumEntries];
     u32 NumOccupied;
     u32 ReadPos, WritePos;
 };
