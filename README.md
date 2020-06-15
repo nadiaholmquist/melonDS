@@ -16,6 +16,7 @@ It's a mess and not finished. Over the next time, I want to integrate the ARM Ne
 - Before running melonDS you will need the Nintendo DS bios and firmware files.
 - They need to be named `bios7.bin` `bios9.bin` and `firmware.bin`
 - Place the 3 files in `~/.config/melonDS-sdl`
+- Copy the `romlist.bin` file into `~/.config/melonDS-sdl`
 - now run in the build folder`./melonDS-sdl` with the path to your ROM file.
 
 ### Credits:
