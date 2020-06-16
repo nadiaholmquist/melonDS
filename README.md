@@ -8,7 +8,8 @@ It's a mess and not finished. Over the next time, I want to integrate the ARM Ne
 - `cd melonDS` 
 - `git checkout pbp` 
 - `mkdir -p build` 
-- `cd build CFLAGS="-march=native -mcpu=native" CXXFLAGS="-march=native -mcpu=native" cmake .. -DBUILD_LIBUI=OFF` 
+- `cd build`
+- `CFLAGS="-march=native -mcpu=native" CXXFLAGS="-march=native -mcpu=native" cmake .. -DBUILD_LIBUI=OFF` 
 - `make -j6`
 
 ### Post Install file modifications:
