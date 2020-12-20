@@ -3,7 +3,7 @@ project(qt_sdl)
 SET(SOURCES_QT_SDL
     main.cpp
     main_shaders.h
-	CheatsDialog.cpp
+    CheatsDialog.cpp
     EmuSettingsDialog.cpp
     InputConfigDialog.cpp
     VideoSettingsDialog.cpp
@@ -27,6 +27,8 @@ SET(SOURCES_QT_SDL
     ../../../melon.qrc
 )
 
+option(USE_QT6 "Build using Qt 6 instead of 5" OFF)
+
 if (WIN32)
     set(CMAKE_RC_COMPILE_OBJECT "<CMAKE_RC_COMPILER> -i <SOURCE> -o <OBJECT>")
 endif()
@@ -39,7 +41,29 @@ if (BUILD_STATIC AND QT5_STATIC_DIR)
     set(Qt5Widgets_DIR ${QT5_STATIC_BASE}Widgets)
 endif()
 
-find_package(Qt5 COMPONENTS Core Gui Widgets REQUIRED)
+if (USE_QT6)
+    if (BUILD_STATIC AND QT6_STATIC_DIR)
+        set(QT6_STATIC_BASE ${QT6_STATIC_DIR}/lib/cmake/Qt6)
+        set(Qt6_DIR ${QT6_STATIC_BASE})
+        set(Qt6Core_DIR ${QT6_STATIC_BASE}Core)
+        set(Qt6Gui_DIR ${QT6_STATIC_BASE}Gui)
+        set(Qt6Widgets_DIR ${QT6_STATIC_BASE}Widgets)
+        set(Qt6OpenGL_DIR ${QT6_STATIC_BASE}OpenGL)
+        set(Qt6OpenGLWidgets_DIR ${QT6_STATIC_BASE}OpenGLWidgets)
+    endif()
+    find_package(Qt6 COMPONENTS Core Gui Widgets OpenGL OpenGLWidgets REQUIRED)
+    set(QT_LINK_LIBS Qt6::Core Qt6::Gui Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets)
+else()
+    if (BUILD_STATIC AND QT5_STATIC_DIR)
+        set(QT5_STATIC_BASE ${QT5_STATIC_DIR}/lib/cmake/Qt5)
+        set(Qt5_DIR ${QT5_STATIC_BASE})
+        set(Qt5Core_DIR ${QT5_STATIC_BASE}Core)
+        set(Qt5Gui_DIR ${QT5_STATIC_BASE}Gui)
+        set(Qt5Widgets_DIR ${QT5_STATIC_BASE}Widgets)
+    endif()
+    find_package(Qt5 COMPONENTS Core Gui Widgets REQUIRED)
+    set(QT_LINK_LIBS Qt5::Core Qt5::Gui Qt5::Widgets)
+endif()
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
@@ -67,27 +91,28 @@ target_include_directories(melonDS PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 target_link_libraries(melonDS core)
 
 if (BUILD_STATIC)
-	target_link_libraries(melonDS -static ${SDL2_STATIC_LIBRARIES} ${SLIRP_STATIC_LIBRARIES})
+    target_link_libraries(melonDS -static ${SDL2_STATIC_LIBRARIES} ${SLIRP_STATIC_LIBRARIES})
 else()
-	target_link_libraries(melonDS ${SDL2_LIBRARIES} ${SLIRP_LIBRARIES})
+    target_link_libraries(melonDS ${SDL2_LIBRARIES} ${SLIRP_LIBRARIES})
 endif()
 
 if (NOT Iconv_IS_BUILT_IN)
-	target_link_libraries(melonDS iconv)
+    target_link_libraries(melonDS iconv)
 endif()
 
 if (UNIX)
     option(PORTABLE "Make a portable build that looks for its configuration in the current directory" OFF)
-    target_link_libraries(melonDS dl Qt5::Core Qt5::Gui Qt5::Widgets)
+    target_link_libraries(melonDS dl)
+    target_link_libraries(melonDS ${QT_LINK_LIBS})
 elseif (WIN32)
     option(PORTABLE "Make a portable build that looks for its configuration in the current directory" ON)
     target_sources(melonDS PUBLIC "${CMAKE_SOURCE_DIR}/melon.rc")
 
     target_link_libraries(melonDS comctl32 d2d1 dwrite uxtheme ws2_32 iphlpapi gdi32)
     if (BUILD_STATIC)
-        target_link_libraries(melonDS imm32 winmm version setupapi -static Qt5::Core Qt5::Gui Qt5::Widgets z zstd)
+        target_link_libraries(melonDS imm32 winmm version setupapi -static z zstd ${QT_LINK_LIBS})
     else()
-        target_link_libraries(melonDS Qt5::Core Qt5::Gui Qt5::Widgets)
+        target_link_libraries(melonDS ${QT_LINK_LIBS})
     endif()
 endif()
 
