@@ -9,6 +9,7 @@ SET(SOURCES_QT_SDL
     VideoSettingsDialog.cpp
     AudioSettingsDialog.cpp
     WifiSettingsDialog.cpp
+    InterfaceSettingsDialog.cpp
     Input.cpp
     LAN_PCap.cpp
     LAN_Socket.cpp
@@ -17,6 +18,9 @@ SET(SOURCES_QT_SDL
     font.h
     Platform.cpp
     PlatformConfig.cpp
+    
+    ArchiveUtil.h
+    ArchiveUtil.cpp
 
     ../Util_ROM.cpp
     ../Util_Video.cpp
@@ -75,6 +79,16 @@ find_package(Iconv REQUIRED)
 pkg_check_modules(SDL2 REQUIRED sdl2)
 pkg_check_modules(SLIRP REQUIRED slirp)
 
+if (APPLE)
+    # Find libarchive on macOS, because macOS only provides the library, not the headers
+    execute_process(COMMAND brew --prefix libarchive
+                    OUTPUT_VARIABLE LIBARCHIVE_DIR
+                    OUTPUT_STRIP_TRAILING_WHITESPACE)
+    list(APPEND CMAKE_PREFIX_PATH "${LIBARCHIVE_DIR}")
+endif()
+pkg_check_modules(LIBARCHIVE REQUIRED libarchive)
+add_compile_definitions(ARCHIVE_SUPPORT_ENABLED)
+
 if (WIN32 AND (CMAKE_BUILD_TYPE STREQUAL Release))
     add_executable(melonDS WIN32 ${SOURCES_QT_SDL})
 else()
@@ -83,17 +97,17 @@ endif()
 
 target_link_libraries(melonDS ${CMAKE_THREAD_LIBS_INIT})
 
-target_include_directories(melonDS PRIVATE ${SDL2_INCLUDE_DIRS})
-target_include_directories(melonDS PRIVATE ${SLIRP_INCLUDE_DIRS})
+target_include_directories(melonDS PRIVATE ${SDL2_INCLUDE_DIRS} ${SLIRP_INCLUDE_DIRS} ${LIBARCHIVE_INCLUDE_DIRS})
+target_link_directories(melonDS PRIVATE ${SDL2_LIBRARY_DIRS} ${SLIRP_LIBRARY_DIRS} ${LIBARCHIVE_LIBRARY_DIRS})
 target_include_directories(melonDS PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(melonDS PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/..")
 target_include_directories(melonDS PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 target_link_libraries(melonDS core)
 
 if (BUILD_STATIC)
-    target_link_libraries(melonDS -static ${SDL2_STATIC_LIBRARIES} ${SLIRP_STATIC_LIBRARIES})
+	  target_link_libraries(melonDS -static ${SDL2_STATIC_LIBRARIES} ${SLIRP_STATIC_LIBRARIES} ${LIBARCHIVE_STATIC_LIBRARIES})
 else()
-    target_link_libraries(melonDS ${SDL2_LIBRARIES} ${SLIRP_LIBRARIES})
+	  target_link_libraries(melonDS ${SDL2_LIBRARIES} ${SLIRP_LIBRARIES} ${LIBARCHIVE_LIBRARIES})
 endif()
 
 if (NOT Iconv_IS_BUILT_IN)
@@ -102,15 +116,18 @@ endif()
 
 if (UNIX)
     option(PORTABLE "Make a portable build that looks for its configuration in the current directory" OFF)
-    target_link_libraries(melonDS dl)
     target_link_libraries(melonDS ${QT_LINK_LIBS})
+    if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_link_libraries(melonDS dl)
+    endif()
 elseif (WIN32)
     option(PORTABLE "Make a portable build that looks for its configuration in the current directory" ON)
+    configure_file("${CMAKE_SOURCE_DIR}/melon.rc.in" "${CMAKE_SOURCE_DIR}/melon.rc")
     target_sources(melonDS PUBLIC "${CMAKE_SOURCE_DIR}/melon.rc")
 
     target_link_libraries(melonDS comctl32 d2d1 dwrite uxtheme ws2_32 iphlpapi gdi32)
     if (BUILD_STATIC)
-        target_link_libraries(melonDS imm32 winmm version setupapi -static z zstd ${QT_LINK_LIBS})
+        target_link_libraries(melonDS imm32 winmm version setupapi -static ${QT_LINK_LIBS} zstd)
     else()
         target_link_libraries(melonDS ${QT_LINK_LIBS})
     endif()
@@ -123,13 +140,13 @@ endif()
 if (APPLE)
     set_target_properties(melonDS PROPERTIES
                          MACOSX_BUNDLE true
-                         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/melonDS.plist
+                         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/melon.plist.in
                          OUTPUT_NAME melonDS
                          )
 
     # Copy icon into the bundle
-    target_sources(melonDS PRIVATE "${CMAKE_SOURCE_DIR}/melonDS.icns")
-    set_source_files_properties("${CMAKE_SOURCE_DIR}/melonDS.icns" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    target_sources(melonDS PRIVATE "${CMAKE_SOURCE_DIR}/melon.icns")
+    set_source_files_properties("${CMAKE_SOURCE_DIR}/melon.icns" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
 
 endif()
 

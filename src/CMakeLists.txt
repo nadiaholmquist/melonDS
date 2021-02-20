@@ -1,6 +1,6 @@
 project(core)
 
-set (CMAKE_CXX_STANDARD 14)
+set (CMAKE_CXX_STANDARD 17)
 
 add_library(core STATIC
 	ARCodeFile.cpp
@@ -33,6 +33,7 @@ add_library(core STATIC
 	melonDLDI.h
 	NDS.cpp
 	NDSCart.cpp
+	NDSCart_SRAMManager.cpp
 	Platform.h
 	ROMList.h
 	RTC.cpp
@@ -100,22 +101,26 @@ if (ENABLE_JIT)
 endif()
 
 if (APPLE)
-        target_include_directories(core PUBLIC /usr/local/include)
-        target_link_directories(core PUBLIC /usr/local/lib)
+        target_include_directories(core PUBLIC /usr/local/include /opt/homebrew/include)
+        target_link_directories(core PUBLIC /usr/local/lib /opt/homebrew/lib)
 endif()
 
 if (ENABLE_OGLRENDERER)
-	if (WIN32)
-		target_link_libraries(core ole32 comctl32 ws2_32 opengl32)
-  elseif (APPLE)
-    target_link_libraries(core "-framework OpenGL")
-  else()
-		target_link_libraries(core GL EGL)
-	endif()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(EPOXY REQUIRED epoxy)
+
+    target_include_directories(core PRIVATE ${EPOXY_INCLUDE_DIRS})
+    if (WIN32)
+        target_link_libraries(core ole32 comctl32 ws2_32 ${EPOXY_LIBRARIES})
+    elseif (APPLE)
+        target_link_libraries(core ${EPOXY_LIBRARIES})
+    else()
+        target_link_libraries(core rt ${EPOXY_LIBRARIES})
+    endif()
 else()
 	if (WIN32)
 		target_link_libraries(core ole32 comctl32 ws2_32)
 	else()
-		target_link_libraries(core)
+		target_link_libraries(core rt)
 	endif()
 endif()

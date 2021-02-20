@@ -54,13 +54,12 @@ enum
     Event_MAX
 };
 
-typedef struct
+struct SchedEvent
 {
     void (*Func)(u32 param);
     u64 Timestamp;
     u32 Param;
-
-} SchedEvent;
+};
 
 enum
 {
@@ -121,27 +120,29 @@ enum
     IRQ2_DSi_MicExt
 };
 
-typedef struct
+struct Timer
 {
     u16 Reload;
     u16 Cnt;
     u32 Counter;
     u32 CycleShift;
+};
 
-} Timer;
-
-typedef struct
+struct MemRegion
 {
     u8* Mem;
     u32 Mask;
-
-} MemRegion;
+};
 
 extern int ConsoleType;
 extern int CurCPU;
 
 extern u8 ARM9MemTimings[0x40000][4];
 extern u8 ARM7MemTimings[0x20000][4];
+
+extern u32 NumFrames;
+extern u32 NumLagFrames;
+extern bool LagFrameFlag;
 
 extern u64 ARM9Timestamp, ARM9Target;
 extern u64 ARM7Timestamp, ARM7Target;
@@ -196,7 +197,9 @@ void SetARM7RegionTimings(u32 addrstart, u32 addrend, int buswidth, int nonseq, 
 void SetConsoleType(int type);
 
 bool LoadROM(const char* path, const char* sram, bool direct);
+bool LoadROM(const u8* romdata, u32 filelength, const char *sram, bool direct);
 bool LoadGBAROM(const char* path, const char* sram);
+bool LoadGBAROM(const u8* romdata, u32 filelength, const char *filename, const char *sram);
 void LoadBIOS();
 void SetupDirectBoot();
 void RelocateSave(const char* path, bool write);

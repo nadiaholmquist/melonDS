@@ -63,7 +63,6 @@
 char* EmuDirectory;
 
 void emuStop();
-void* oglGetProcAddress(const char* proc);
 
 
 namespace Platform
@@ -188,7 +187,7 @@ FILE* OpenLocalFile(const char* path, const char* mode)
     return OpenFile(fullpath.toUtf8(), mode, mode[0] != 'w');
 }
 
-Thread* Thread_Create(void (* func)())
+Thread* Thread_Create(std::function<void()> func)
 {
     QThread* t = QThread::create(func);
     t->start();
@@ -206,7 +205,6 @@ void Thread_Wait(Thread* thread)
 {
     ((QThread*) thread)->wait();
 }
-
 
 Semaphore* Semaphore_Create()
 {
@@ -258,11 +256,6 @@ void Mutex_Unlock(Mutex* mutex)
 bool Mutex_TryLock(Mutex* mutex)
 {
     return ((QMutex*) mutex)->try_lock();
-}
-
-void* GL_GetProcAddress(const char* proc)
-{
-    return oglGetProcAddress(proc);
 }
 
 
@@ -443,5 +436,9 @@ int LAN_RecvPacket(u8* data)
         return LAN_Socket::RecvPacket(data);
 }
 
+void Sleep(u64 usecs)
+{
+    QThread::usleep(usecs);
+}
 
 }

@@ -21,6 +21,7 @@
 #include "NDS.h"
 #include "GPU.h"
 
+#include "GPU2D_Soft.h"
 
 namespace GPU
 {
@@ -79,11 +80,10 @@ u8* VRAMPtr_BOBJ[0x8];
 
 int FrontBuffer;
 u32* Framebuffer[2][2];
-int Renderer;
-bool Accelerated;
+int Renderer = 0;
 
-GPU2D* GPU2D_A;
-GPU2D* GPU2D_B;
+std::unique_ptr<GPU2D> GPU2D_A = {};
+std::unique_ptr<GPU2D> GPU2D_B = {};
 
 /*
     VRAM invalidation tracking
@@ -142,25 +142,31 @@ u8 VRAMFlat_BOBJExtPal[8*1024];
 u8 VRAMFlat_Texture[512*1024];
 u8 VRAMFlat_TexPal[128*1024];
 
+u32 OAMDirty;
+u32 PaletteDirty;
+
+#ifdef OGLRENDERER_ENABLED
+std::unique_ptr<GLCompositor> CurGLCompositor = {};
+#endif
+
 bool Init()
 {
-    GPU2D_A = new GPU2D_Soft(0);
-    GPU2D_B = new GPU2D_Soft(1);
+    GPU2D_A = std::make_unique<GPU2D_Soft>(0);
+    GPU2D_B = std::make_unique<GPU2D_Soft>(1);
     if (!GPU3D::Init()) return false;
 
     FrontBuffer = 0;
     Framebuffer[0][0] = NULL; Framebuffer[0][1] = NULL;
     Framebuffer[1][0] = NULL; Framebuffer[1][1] = NULL;
     Renderer = 0;
-    Accelerated = false;
 
     return true;
 }
 
 void DeInit()
 {
-    delete GPU2D_A;
-    delete GPU2D_B;
+    GPU2D_A.reset();
+    GPU2D_B.reset();
     GPU3D::DeInit();
 
     if (Framebuffer[0][0]) delete[] Framebuffer[0][0];
@@ -247,9 +253,12 @@ void Reset()
     memset(VRAMPtr_BBG, 0, sizeof(VRAMPtr_BBG));
     memset(VRAMPtr_BOBJ, 0, sizeof(VRAMPtr_BOBJ));
 
-    int fbsize;
-    if (Accelerated) fbsize = (256*3 + 1) * 192;
-    else             fbsize = 256 * 192;
+    size_t fbsize;
+    if (GPU3D::CurrentRenderer->Accelerated)
+        fbsize = (256*3 + 1) * 192;
+    else
+        fbsize = 256 * 192;
+
     for (int i = 0; i < fbsize; i++)
     {
         Framebuffer[0][0][i] = 0xFFFFFFFF;
@@ -272,17 +281,30 @@ void Reset()
     ResetRenderer();
 
     ResetVRAMCache();
+
+    OAMDirty = 0x3;
+    PaletteDirty = 0xF;
 }
 
 void Stop()
 {
     int fbsize;
-    if (Accelerated) fbsize = (256*3 + 1) * 192;
-    else             fbsize = 256 * 192;
+    if (GPU3D::CurrentRenderer->Accelerated)
+        fbsize = (256*3 + 1) * 192;
+    else
+        fbsize = 256 * 192;
+
     memset(Framebuffer[0][0], 0, fbsize*4);
     memset(Framebuffer[0][1], 0, fbsize*4);
     memset(Framebuffer[1][0], 0, fbsize*4);
     memset(Framebuffer[1][1], 0, fbsize*4);
+
+#ifdef OGLRENDERER_ENABLED
+    // This needs a better way to know that we're
+    // using the OpenGL renderer specifically
+    if (GPU3D::CurrentRenderer->Accelerated)
+        CurGLCompositor->Stop();
+#endif
 }
 
 void DoSavestate(Savestate* file)
@@ -371,37 +393,42 @@ void InitRenderer(int renderer)
 #ifdef OGLRENDERER_ENABLED
     if (renderer == 1)
     {
-        if (!GLCompositor::Init())
+        CurGLCompositor = std::make_unique<GLCompositor>();
+        // Create opengl rendrerer
+        if (!CurGLCompositor->Init())
         {
+            // Fallback on software renderer
             renderer = 0;
+            GPU3D::CurrentRenderer = std::make_unique<GPU3D::SoftRenderer>();
+            GPU3D::CurrentRenderer->Init();
         }
-        else if (!GPU3D::GLRenderer::Init())
+        GPU3D::CurrentRenderer = std::make_unique<GPU3D::GLRenderer>();
+        if (!GPU3D::CurrentRenderer->Init())
         {
-            GLCompositor::DeInit();
+            // Fallback on software renderer
+            CurGLCompositor->DeInit();
+            CurGLCompositor.reset();
             renderer = 0;
+            GPU3D::CurrentRenderer = std::make_unique<GPU3D::SoftRenderer>();
         }
     }
     else
 #endif
     {
-        GPU3D::SoftRenderer::Init();
+        GPU3D::CurrentRenderer = std::make_unique<GPU3D::SoftRenderer>();
+        GPU3D::CurrentRenderer->Init();
     }
 
     Renderer = renderer;
-    Accelerated = renderer != 0;
 }
 
 void DeInitRenderer()
 {
-    if (Renderer == 0)
-    {
-        GPU3D::SoftRenderer::DeInit();
-    }
+    GPU3D::CurrentRenderer->DeInit();
 #ifdef OGLRENDERER_ENABLED
-    else
+    if (Renderer == 1)
     {
-        GPU3D::GLRenderer::DeInit();
-        GLCompositor::DeInit();
+        CurGLCompositor->DeInit();
     }
 #endif
 }
@@ -410,13 +437,13 @@ void ResetRenderer()
 {
     if (Renderer == 0)
     {
-        GPU3D::SoftRenderer::Reset();
+        GPU3D::CurrentRenderer->Reset();
     }
 #ifdef OGLRENDERER_ENABLED
     else
     {
-        GLCompositor::Reset();
-        GPU3D::GLRenderer::Reset();
+        CurGLCompositor->Reset();
+        GPU3D::CurrentRenderer->Reset();
     }
 #endif
 }
@@ -429,10 +456,12 @@ void SetRenderSettings(int renderer, RenderSettings& settings)
         InitRenderer(renderer);
     }
 
-    bool accel = Accelerated;
     int fbsize;
-    if (accel) fbsize = (256*3 + 1) * 192;
-    else       fbsize = 256 * 192;
+    if (GPU3D::CurrentRenderer->Accelerated)
+        fbsize = (256*3 + 1) * 192;
+    else
+        fbsize = 256 * 192;
+
     if (Framebuffer[0][0]) { delete[] Framebuffer[0][0]; Framebuffer[0][0] = nullptr; }
     if (Framebuffer[1][0]) { delete[] Framebuffer[1][0]; Framebuffer[1][0] = nullptr; }
     if (Framebuffer[0][1]) { delete[] Framebuffer[0][1]; Framebuffer[0][1] = nullptr; }
@@ -450,18 +479,15 @@ void SetRenderSettings(int renderer, RenderSettings& settings)
 
     AssignFramebuffers();
 
-    GPU2D_A->SetRenderSettings(accel);
-    GPU2D_B->SetRenderSettings(accel);
-
     if (Renderer == 0)
     {
-        GPU3D::SoftRenderer::SetRenderSettings(settings);
+        GPU3D::CurrentRenderer->SetRenderSettings(settings);
     }
 #ifdef OGLRENDERER_ENABLED
     else
     {
-        GLCompositor::SetRenderSettings(settings);
-        GPU3D::GLRenderer::SetRenderSettings(settings);
+        CurGLCompositor->SetRenderSettings(settings);
+        GPU3D::CurrentRenderer->SetRenderSettings(settings);
     }
 #endif
 }
@@ -632,6 +658,7 @@ void MapVRAM_CD(u32 bank, u8 cnt)
         case 2: // ARM7 VRAM
             ofs &= 0x1;
             VRAMMap_ARM7[ofs] |= bankmask;
+            memset(VRAMDirty[bank].Data, 0xFF, sizeof(VRAMDirty[bank].Data));
             VRAMSTAT |= (1 << (bank-2));
             break;
 
@@ -1112,6 +1139,14 @@ void StartScanline(u32 line)
     {
         if (VCount == 192)
         {
+            // in reality rendering already finishes at line 144
+            // and games might already start to modify texture memory.
+            // That doesn't matter for us because we cache the entire
+            // texture memory anyway and only update it before the start
+            //of the next frame.
+            // So we can give the rasteriser a bit more headroom
+            GPU3D::VCount144();
+
             // VBlank
             DispStat[0] |= (1<<0);
             DispStat[1] |= (1<<0);
@@ -1129,12 +1164,10 @@ void StartScanline(u32 line)
             GPU3D::VBlank();
 
 #ifdef OGLRENDERER_ENABLED
-            if (Accelerated) GLCompositor::RenderFrame();
+            // Need a better way to identify the openGL renderer in particular
+            if (GPU3D::CurrentRenderer->Accelerated)
+                CurGLCompositor->RenderFrame();
 #endif
-        }
-        else if (VCount == 144)
-        {
-            GPU3D::VCount144();
         }
     }
 
@@ -1171,7 +1204,7 @@ NonStupidBitField<Size/VRAMDirtyGranularity> VRAMTrackingSet<Size, MappingGranul
     {
         if (currentMappings[i] != Mapping[i])
         {
-            result |= NonStupidBitField<Size/VRAMDirtyGranularity>(i*VRAMBitsPerMapping, VRAMBitsPerMapping);
+            result.SetRange(i*VRAMBitsPerMapping, VRAMBitsPerMapping);
             banksToBeZeroed |= currentMappings[i];
             Mapping[i] = currentMappings[i];
         }
@@ -1189,23 +1222,23 @@ NonStupidBitField<Size/VRAMDirtyGranularity> VRAMTrackingSet<Size, MappingGranul
                 // hack for **speed**
                 // this could probably be done less ugly but then we would rely
                 // on the compiler for vectorisation
-                static_assert(VRAMDirtyGranularity == 512);
+                static_assert(VRAMDirtyGranularity == 512, "");
                 if (MappingGranularity == 16*1024)
                 {
                     u32 dirty = ((u32*)VRAMDirty[num].Data)[i & (VRAMMask[num] >> 14)];
-                    ((u32*)result.Data)[i] |= dirty;
+                    result.Data[i / 2] |= (u64)dirty << ((i&1)*32);
                 }
                 else if (MappingGranularity == 8*1024)
                 {
                     u16 dirty = ((u16*)VRAMDirty[num].Data)[i & (VRAMMask[num] >> 13)];
-                    ((u16*)result.Data)[i] |= dirty;
+                    result.Data[i / 4] |= (u64)dirty << ((i&3)*16);
                 }
                 else if (MappingGranularity == 128*1024)
                 {
-                    ((u64*)result.Data)[i * 4 + 0] |= ((u64*)VRAMDirty[num].Data)[0];
-                    ((u64*)result.Data)[i * 4 + 1] |= ((u64*)VRAMDirty[num].Data)[1];
-                    ((u64*)result.Data)[i * 4 + 2] |= ((u64*)VRAMDirty[num].Data)[2];
-                    ((u64*)result.Data)[i * 4 + 3] |= ((u64*)VRAMDirty[num].Data)[3];
+                    result.Data[i * 4 + 0] |= VRAMDirty[num].Data[0];
+                    result.Data[i * 4 + 1] |= VRAMDirty[num].Data[1];
+                    result.Data[i * 4 + 2] |= VRAMDirty[num].Data[2];
+                    result.Data[i * 4 + 3] |= VRAMDirty[num].Data[3];
                 }
                 else
                 {
@@ -1220,7 +1253,7 @@ NonStupidBitField<Size/VRAMDirtyGranularity> VRAMTrackingSet<Size, MappingGranul
     {
         u32 num = __builtin_ctz(banksToBeZeroed);
         banksToBeZeroed &= ~(1 << num);
-        memset(VRAMDirty[num].Data, 0, sizeof(VRAMDirty[num].Data));
+        VRAMDirty[num].Clear();
     }
 
     return result;
@@ -1250,7 +1283,7 @@ void SyncDirtyFlags(u32* mappings, NonStupidBitField<Size>& writtenFlags)
             mapping &= ~(1 << num);
         }
     }
-    memset(writtenFlags.Data, 0, sizeof(writtenFlags.Data));
+    writtenFlags.Clear();
 }
 
 void SyncDirtyFlags()
@@ -1259,7 +1292,6 @@ void SyncDirtyFlags()
     SyncDirtyFlags(VRAMMap_AOBJ, VRAMWritten_AOBJ);
     SyncDirtyFlags(VRAMMap_BBG, VRAMWritten_BBG);
     SyncDirtyFlags(VRAMMap_BOBJ, VRAMWritten_BOBJ);
-    SyncDirtyFlags(VRAMMap_ARM7, VRAMWritten_ARM7);
 }
 
 template <u32 MappingGranularity, u32 Size>

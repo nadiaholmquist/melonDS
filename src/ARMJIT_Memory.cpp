@@ -155,8 +155,12 @@ static void SigsegvHandler(int sig, siginfo_t* info, void* rawContext)
     u8* curArea = (u8*)(NDS::CurCPU == 0 ? ARMJIT_Memory::FastMem9Start : ARMJIT_Memory::FastMem7Start);
 #ifdef __x86_64__
     desc.EmulatedFaultAddr = (u8*)info->si_addr - curArea;
-    #ifdef __APPLE__
+    #if defined(__APPLE__)
         desc.FaultPC = (u8*)context->uc_mcontext->__ss.__rip;
+    #elif defined(__FreeBSD__)
+        desc.FaultPC = (u8*)context->uc_mcontext.mc_rip;
+    #elif defined(__NetBSD__)
+        desc.FaultPC = (u8*)context->uc_mcontext.__gregs[_REG_RIP];
     #else
         desc.FaultPC = (u8*)context->uc_mcontext.gregs[REG_RIP];
     #endif
@@ -174,8 +178,12 @@ static void SigsegvHandler(int sig, siginfo_t* info, void* rawContext)
     if (ARMJIT_Memory::FaultHandler(desc))
     {
 #ifdef __x86_64__
-        #ifdef __APPLE__
+        #if defined(__APPLE__)
             context->uc_mcontext->__ss.__rip = (u64)desc.FaultPC;
+        #elif defined(__FreeBSD__)
+            context->uc_mcontext.mc_rip = (u64)desc.FaultPC;
+        #elif defined(__NetBSD__)
+            context->uc_mcontext.__gregs[_REG_RIP] = (u64)desc.FaultPC;
         #else
             context->uc_mcontext.gregs[REG_RIP] = (u64)desc.FaultPC;
         #endif
@@ -275,6 +283,7 @@ u8 MappingStatus9[1 << (32-12)];
 u8 MappingStatus7[1 << (32-12)];
 
 #if defined(__SWITCH__)
+VirtmemReservation* FastMem9Reservation, *FastMem7Reservation;
 u8* MemoryBase;
 u8* MemoryBaseCodeMem;
 #elif defined(_WIN32)
@@ -676,7 +685,8 @@ void Init()
 {
 #if defined(__SWITCH__)
     MemoryBase = (u8*)aligned_alloc(0x1000, MemoryTotalSize);
-    MemoryBaseCodeMem = (u8*)virtmemReserve(MemoryTotalSize);
+    virtmemLock();
+    MemoryBaseCodeMem = (u8*)virtmemFindCodeMemory(MemoryTotalSize, 0x1000);
 
     bool succeded = R_SUCCEEDED(svcMapProcessCodeMemory(envGetOwnProcessHandle(), (u64)MemoryBaseCodeMem, 
         (u64)MemoryBase, MemoryTotalSize));
@@ -686,10 +696,14 @@ void Init()
     assert(succeded);
 
     // 8 GB of address space, just don't ask...
-    FastMem9Start = virtmemReserve(AddrSpaceSize);
+    FastMem9Start = virtmemFindAslr(AddrSpaceSize, 0x1000);
     assert(FastMem9Start);
-    FastMem7Start = virtmemReserve(AddrSpaceSize);
+    FastMem7Start = virtmemFindAslr(AddrSpaceSize, 0x1000);
     assert(FastMem7Start);
+
+    FastMem9Reservation = virtmemAddReservation(FastMem9Start, AddrSpaceSize);
+    FastMem7Reservation = virtmemAddReservation(FastMem7Start, AddrSpaceSize);
+    virtmemUnlock();
 
     u8* basePtr = MemoryBaseCodeMem;
 #elif defined(_WIN32)
@@ -697,16 +711,17 @@ void Init()
 
     MemoryFile = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, MemoryTotalSize, NULL);
 
-    MemoryBase = (u8*)VirtualAlloc(NULL, MemoryTotalSize, MEM_RESERVE, PAGE_READWRITE);
-
-    FastMem9Start = VirtualAlloc(NULL, AddrSpaceSize, MEM_RESERVE, PAGE_READWRITE);
-    FastMem7Start = VirtualAlloc(NULL, AddrSpaceSize, MEM_RESERVE, PAGE_READWRITE);
-
-    // only free them after they have all been reserved
-    // so they can't overlap
+    MemoryBase = (u8*)VirtualAlloc(NULL, AddrSpaceSize*4, MEM_RESERVE, PAGE_READWRITE);
     VirtualFree(MemoryBase, 0, MEM_RELEASE);
-    VirtualFree(FastMem9Start, 0, MEM_RELEASE);
-    VirtualFree(FastMem7Start, 0, MEM_RELEASE);
+    // this is incredible hacky
+    // but someone else is trying to go into our address space!
+    // Windows will very likely give them virtual memory starting at the same address
+    // as it is giving us now.
+    // That's why we don't use this address, but instead 4gb inwards
+    // I know this is terrible
+    FastMem9Start = MemoryBase + AddrSpaceSize;
+    FastMem7Start = MemoryBase + AddrSpaceSize*2;
+    MemoryBase = MemoryBase + AddrSpaceSize*3;
 
     MapViewOfFileEx(MemoryFile, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, MemoryTotalSize, MemoryBase);
 
@@ -739,15 +754,20 @@ void Init()
         ioctl(fd, ASHMEM_SET_SIZE, MemoryTotalSize);
         MemoryFile = fd;
     }
-#elif defined(__APPLE__)
-    char* fastmemPidName = new char[snprintf(NULL, 0, "melondsfastmem%d", getpid()) + 1];
-    sprintf(fastmemPidName, "melondsfastmem%d", getpid());
-    MemoryFile = shm_open(fastmemPidName, O_RDWR|O_CREAT, 0600);
-    delete[] fastmemPidName;
 #else
-    MemoryFile = memfd_create("melondsfastmem", 0);
+    char fastmemPidName[snprintf(NULL, 0, "/melondsfastmem%d", getpid()) + 1];
+    sprintf(fastmemPidName, "/melondsfastmem%d", getpid());
+    MemoryFile = shm_open(fastmemPidName, O_RDWR | O_CREAT | O_EXCL, 0600);
+    if (MemoryFile == -1)
+    {
+        printf("Failed to open memory using shm_open!");
+    }
+    shm_unlink(fastmemPidName);
 #endif
-    ftruncate(MemoryFile, MemoryTotalSize);
+    if (ftruncate(MemoryFile, MemoryTotalSize) < 0)
+    {
+        printf("Failed to allocate memory using ftruncate!");
+    }
 
     struct sigaction sa;
     sa.sa_handler = nullptr;
@@ -775,17 +795,13 @@ void Init()
 void DeInit()
 {
 #if defined(__SWITCH__)
-    virtmemFree(FastMem9Start, AddrSpaceSize);
-    virtmemFree(FastMem7Start, AddrSpaceSize);
+    virtmemLock();
+    virtmemRemoveReservation(FastMem9Reservation);
+    virtmemRemoveReservation(FastMem7Reservation);
+    virtmemUnlock();
 
     svcUnmapProcessCodeMemory(envGetOwnProcessHandle(), (u64)MemoryBaseCodeMem, (u64)MemoryBase, MemoryTotalSize);
-    virtmemFree(MemoryBaseCodeMem, MemoryTotalSize);
     free(MemoryBase);
-#elif defined(__APPLE__)
-    char* fastmemPidName = new char[snprintf(NULL, 0, "melondsfastmem%d", getpid()) + 1];
-    sprintf(fastmemPidName, "melondsfastmem%d", getpid());
-    shm_unlink(fastmemPidName);
-    delete[] fastmemPidName;
 #elif defined(_WIN32)
     assert(UnmapViewOfFile(MemoryBase));
     CloseHandle(MemoryFile);

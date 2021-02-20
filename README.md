@@ -2,9 +2,14 @@
 <h2 align="center"><b>melonDS</b></h2>
 <p align="center">
 <a href="http://melonds.kuribo64.net/" alt="melonDS website"><img src="https://img.shields.io/badge/website-melonds.kuribo64.net-%2331352e.svg"></a>
-<a href="http://melonds.kuribo64.net/downloads.php" alt="Release: 0.9"><img src="https://img.shields.io/badge/release-0.9-%235c913b.svg"></a>
+<a href="http://melonds.kuribo64.net/downloads.php" alt="Release: 0.9.1"><img src="https://img.shields.io/badge/release-0.9.1-%235c913b.svg"></a>
 <a href="https://www.gnu.org/licenses/gpl-3.0" alt="License: GPLv3"><img src="https://img.shields.io/badge/License-GPL%20v3-%23ff554d.svg"></a>
 <a href="https://kiwiirc.com/client/irc.badnik.net/?nick=IRC-Source_?#melonds" alt="IRC channel: #melonds"><img src="https://img.shields.io/badge/IRC%20chat-%23melonds-%23dd2e44.svg"></a>
+<br>
+<a href="https://github.com/Arisotura/melonDS/actions?query=workflow%3A%22CMake+Build+%28Windows+x86-64%29%22+event%3Apush"><img src="https://img.shields.io/github/workflow/status/Arisotura/melonDS/CMake%20Build%20(Windows%20x86-64)?label=Windows%20x86-64&logo=GitHub"></img></a>
+<a href="https://github.com/Arisotura/melonDS/actions?query=workflow%3A%22CMake+Build+%28Ubuntu+x86-64%29%22+event%3Apush"><img src="https://img.shields.io/github/workflow/status/Arisotura/melonDS/CMake%20Build%20(Ubuntu%20x86-64)?label=Linux%20x86-64&logo=GitHub"></img></a>
+<a href="https://github.com/Arisotura/melonDS/actions?query=workflow%3A%22CMake+Build+%28macOS+x86-64%29%22+event%3Apush"><img src="https://img.shields.io/github/workflow/status/Arisotura/melonDS/CMake%20Build%20(macOS%20x86-64)?label=macOS%20x86-64&logo=GitHub"></img></a>
+<a href="https://github.com/Arisotura/melonDS/actions?query=workflow%3A%22CMake+Build+%28Ubuntu+aarch64%29%22+event%3Apush"><img src="https://img.shields.io/github/workflow/status/Arisotura/melonDS/CMake%20Build%20(Ubuntu%20aarch64)?label=Linux%20ARM64&logo=GitHub"></img></a>
 </p>
 DS emulator, sorta
 
@@ -35,35 +40,36 @@ As for the rest, the interface should be pretty straightforward. If you have a q
 
 ### Linux:
 
-* Install dependencies:
-
-```sh
-sudo apt-get install cmake libcurl4-gnutls-dev libpcap0.8-dev libsdl2-dev qtbase5-dev qtdeclarative5-dev libslirp-dev
-```
-
-* Compile:
-
-```sh
-mkdir -p build
-cd build
-cmake ..
-make -j$(nproc --all)
-```
+1. Install dependencies: `sudo apt install cmake libcurl4-gnutls-dev libpcap0.8-dev libsdl2-dev qt5-default libslirp-dev libarchive-dev libepoxy-dev`
+2. Download the melonDS repository and prepare:
+  ```bash
+  git clone https://github.com/Arisotura/melonDS
+  cd melonDS
+  mkdir build && cd build
+  ```
+3. Compile:
+  ```bash
+  mkdir -p build
+  cd build
+  cmake ..
+  make -j$(nproc --all)
+  ```
 
 ### Windows:
 
 1. Install [MSYS2](https://www.msys2.org/)
 2. Open the **MSYS2 MinGW 64-bit** terminal
 3. Update the packages using `pacman -Syu` and reopen the terminal if it asks you to
-
+4. Download the melonDS repository and prepare:
+  ```bash
+  git clone https://github.com/Arisotura/melonDS
+  cd melonDS
+  mkdir build && cd build
+  ```
 #### Dynamic builds (with DLLs)
-4. Install dependencies: `pacman -S git make mingw-w64-x86_64-{cmake,mesa,SDL2,toolchain,qt5,libslirp}`
-5. Run the following commands
+5. Install dependencies: `pacman -S git make mingw-w64-x86_64-{cmake,mesa,SDL2,toolchain,qt5,libslirp,libarchive,libepoxy}`
+6. Compile:
    ```bash
-   git clone https://github.com/Arisotura/melonDS.git
-   cd melonDS
-   mkdir build
-   cd build
    cmake .. -G "MSYS Makefiles"
    make -j$(nproc --all)
    ../msys-dist.sh
@@ -71,13 +77,9 @@ make -j$(nproc --all)
 If everything went well, melonDS and the libraries it needs should now be in the `dist` folder.
 
 #### Static builds (without DLLs, standalone executable)
-4. Install dependencies: `pacman -S git make mingw-w64-x86_64-{cmake,mesa,SDL2,toolchain,qt5-static,libslirp}`
-5. Run the following commands
+5. Install dependencies: `pacman -S git make mingw-w64-x86_64-{cmake,mesa,SDL2,toolchain,qt5-static,libslirp,libarchive,libepoxy}`
+6. Compile:
    ```bash
-   git clone https://github.com/Arisotura/melonDS.git
-   cd melonDS
-   mkdir build
-   cd build
    cmake .. -G 'MSYS Makefiles' -DBUILD_STATIC=ON -DQT5_STATIC_DIR=/mingw64/qt5-static
    make -j$(nproc --all)
    mkdir dist && cp melonDS.exe dist
@@ -86,12 +88,15 @@ If everything went well, melonDS should now be in the `dist` folder.
 
 ### macOS:
 1. Install the [Homebrew Package Manager](https://brew.sh)
-2. Install dependencies: `brew install git pkg-config cmake sdl2 qt5 libslirp`
-3. Compile:
+2. Install dependencies: `brew install git pkg-config cmake sdl2 qt@5 libslirp libarchive libepoxy`
+3. Download the melonDS repository and prepare:
+  ```zsh
+  git clone https://github.com/Arisotura/melonDS
+  cd melonDS
+  mkdir build && cd build
+  ```
+4. Compile:
    ```zsh
-   git clone https://github.com/Arisotura/melonDS.git
-   cd melonDS
-   mkdir build && cd build
    cmake .. -DQt5_DIR=$(brew --prefix qt5)/lib/cmake/Qt5
    make -j$(sysctl -n hw.ncpu)
    mkdir dist && cp -r melonDS.app dist

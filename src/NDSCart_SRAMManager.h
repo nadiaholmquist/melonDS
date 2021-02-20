@@ -16,10 +16,18 @@
     with melonDS. If not, see http://www.gnu.org/licenses/.
 */
 
-#ifndef VERSION_H
-#define VERSION_H
+#ifndef NDSCART_SRAMMANAGER_H
+#define NDSCART_SRAMMANAGER_H
 
-#define MELONDS_URL        "http://melonds.kuribo64.net/"
+#include "types.h"
 
-#endif // VERSION_H
+namespace NDSCart_SRAMManager
+{
+    bool Init();
+    void DeInit();
 
+    void Setup(const char* path, u8* buffer, u32 length);
+    void RequestFlush();
+}
+
+#endif // NDSCART_SRAMMANAGER_H

@@ -35,7 +35,7 @@ u8* Compiler::RewriteMemAccess(u8* pc)
         return pc + (ptrdiff_t)patch.Offset;
     }
 
-    printf("this is a JIT bug %llx\n", pc);
+    printf("this is a JIT bug %sx\n", pc);
     abort();
 }
 
@@ -129,6 +129,12 @@ void Compiler::Comp_MemAccess(int rd, int rn, const Op2& op2, int size, int flag
     OpArg rnMapped = MapReg(rn);
     if (Thumb && rn == 15)
         rnMapped = Imm32(R15 & ~0x2);
+
+    if (flags & memop_Store && flags & (memop_Post|memop_Writeback) && rd == rn)
+    {
+        MOV(32, R(RSCRATCH4), rdMapped);
+        rdMapped = R(RSCRATCH4);
+    }
 
     X64Reg finalAddr = RSCRATCH3;
     if (flags & memop_Post)
@@ -282,13 +288,15 @@ void Compiler::Comp_MemAccess(int rd, int rn, const Op2& op2, int size, int flag
         {
             if (Num == 0)
             {
+                // on Windows param 3 is R8 which is also scratch 4 which can be used for rd
+                if (flags & memop_Store)
+                    MOV(32, R(ABI_PARAM3), rdMapped);
+
                 MOV(64, R(ABI_PARAM2), R(RCPU));
                 if (ABI_PARAM1 != RSCRATCH3)
                     MOV(32, R(ABI_PARAM1), R(RSCRATCH3));
                 if (flags & memop_Store)
                 {
-                    MOV(32, R(ABI_PARAM3), rdMapped);
-
                     switch (size | NDS::ConsoleType)
                     {
                     case 32: CALL((void*)&SlowWrite9<u32, 0>); break;

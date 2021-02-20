@@ -21,6 +21,8 @@
 
 #include "types.h"
 
+#include <functional>
+
 namespace Platform
 {
 
@@ -68,7 +70,7 @@ inline bool LocalFileExists(const char* name)
 }
 
 struct Thread;
-Thread* Thread_Create(void (*func)());
+Thread* Thread_Create(std::function<void()> func);
 void Thread_Free(Thread* thread);
 void Thread_Wait(Thread* thread);
 
@@ -86,7 +88,6 @@ void Mutex_Lock(Mutex* mutex);
 void Mutex_Unlock(Mutex* mutex);
 bool Mutex_TryLock(Mutex* mutex);
 
-void* GL_GetProcAddress(const char* proc);
 
 // local multiplayer comm interface
 // packet type: DS-style TX header (12 bytes) + original 802.11 frame
@@ -101,6 +102,8 @@ bool LAN_Init();
 void LAN_DeInit();
 int LAN_SendPacket(u8* data, int len);
 int LAN_RecvPacket(u8* data);
+
+void Sleep(u64 usecs);
 
 }
 
