@@ -81,6 +81,12 @@ if (ENABLE_OGLRENDERER)
     add_definitions(-DOGLRENDERER_ENABLED)
 endif()
 
+option(ENABLE_VKRENDERER "Enable Vulkan renderer" ON)
+
+if (ENABLE_VKRENDERER)
+    add_definitions(-DVKRENDERER_ENABLED)
+endif()
+
 if (CMAKE_BUILD_TYPE STREQUAL Debug)
 	add_compile_options(-Og)
 endif()

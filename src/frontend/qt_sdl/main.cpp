@@ -348,13 +348,9 @@ void EmuThread::run()
     if (hasOGL)
     {
         oglContext->makeCurrent(oglSurface);
-        videoRenderer = Config::_3DRenderer;
     }
-    else
 #endif
-    {
-        videoRenderer = 0;
-    }
+    videoRenderer = Config::_3DRenderer;
 
     GPU::InitRenderer(videoRenderer);
     GPU::SetRenderSettings(videoRenderer, videoSettings);
@@ -407,7 +403,7 @@ void EmuThread::run()
             // update render settings if needed
             if (videoSettingsDirty)
             {
-                if (hasOGL != mainWindow->hasOGL)
+                if (hasOGL != mainWindow->hasOGL && videoRenderer <= 1)
                 {
                     hasOGL = mainWindow->hasOGL;
 #ifdef OGLRENDERER_ENABLED
@@ -423,7 +419,7 @@ void EmuThread::run()
                     }
                 }
                 else
-                    videoRenderer = hasOGL ? Config::_3DRenderer : 0;
+                    videoRenderer = Config::_3DRenderer;
 
                 videoSettingsDirty = false;
 
@@ -1013,7 +1009,7 @@ void ScreenPanelGL::paintGL()
         glActiveTexture(GL_TEXTURE0);
 
     #ifdef OGLRENDERER_ENABLED
-        if (GPU::Renderer != 0)
+        if (GPU::Renderer == 1)
         {
             if (emuThread->FrontBufferSyncs[emuThread->FrontBuffer])
                 glWaitSync(emuThread->FrontBufferSyncs[emuThread->FrontBuffer], 0, GL_TIMEOUT_IGNORED);
@@ -1448,7 +1444,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::createScreenPanel()
 {
-    hasOGL = (Config::ScreenUseGL != 0) || (Config::_3DRenderer != 0);
+    hasOGL = (Config::ScreenUseGL == true) || (Config::_3DRenderer == 1);
 
     QTimer* mouseTimer;
 
@@ -2512,6 +2508,9 @@ int main(int argc, char** argv)
     0 // Minimum, Software renderer
     #ifdef OGLRENDERER_ENABLED
     + 1 // OpenGL Renderer
+    #endif
+    #ifdef VKRENDERER_ENABLED
+    + 1 // Vulkan Renderer
     #endif
     );
     SANITIZE(Config::ScreenVSyncInterval, 1, 20);

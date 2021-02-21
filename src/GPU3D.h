@@ -170,4 +170,8 @@ extern std::unique_ptr<Renderer3D> CurrentRenderer;
 #include "GPU3D_OpenGL.h"
 #endif
 
+#ifdef VKRENDERER_ENABLED
+#include "GPU3D_Vulkan.h"
+#endif
+
 #endif

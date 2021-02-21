@@ -28,6 +28,10 @@
 #include "GPU_OpenGL.h"
 #endif
 
+#ifdef VKRENDERER_ENABLED
+#include "GPU_Vulkan.h"
+#endif
+
 namespace GPU
 {
 
