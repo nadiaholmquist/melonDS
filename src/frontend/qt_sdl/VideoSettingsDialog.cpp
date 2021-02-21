@@ -47,6 +47,7 @@ VideoSettingsDialog::VideoSettingsDialog(QWidget* parent) : QDialog(parent), ui(
     grp3DRenderer = new QButtonGroup(this);
     grp3DRenderer->addButton(ui->rb3DSoftware, 0);
     grp3DRenderer->addButton(ui->rb3DOpenGL,   1);
+    grp3DRenderer->addButton(ui->rb3DVulkan,   2);
     connect(grp3DRenderer, SIGNAL(buttonClicked(int)), this, SLOT(onChange3DRenderer(int)));
     grp3DRenderer->button(Config::_3DRenderer)->setChecked(true);
 
@@ -54,7 +55,7 @@ VideoSettingsDialog::VideoSettingsDialog(QWidget* parent) : QDialog(parent), ui(
     ui->rb3DOpenGL->setEnabled(false);
 #endif
 
-    ui->cbGLDisplay->setChecked(Config::ScreenUseGL != 0);
+    ui->cbGLDisplay->setChecked(Config::ScreenUseGL == true);
 
     ui->cbVSync->setChecked(Config::ScreenVSync != 0);
     ui->sbVSyncInterval->setValue(Config::ScreenVSyncInterval);
@@ -70,19 +71,32 @@ VideoSettingsDialog::VideoSettingsDialog(QWidget* parent) : QDialog(parent), ui(
     if (!Config::ScreenVSync)
         ui->sbVSyncInterval->setEnabled(false);
 
-    if (Config::_3DRenderer == 0)
+    switch(Config::_3DRenderer)
     {
-        ui->cbGLDisplay->setEnabled(true);
-        ui->cbSoftwareThreaded->setEnabled(true);
-        ui->cbxGLResolution->setEnabled(false);
-        ui->cbBetterPolygons->setEnabled(false);
-    }
-    else
-    {
-        ui->cbGLDisplay->setEnabled(false);
-        ui->cbSoftwareThreaded->setEnabled(false);
-        ui->cbxGLResolution->setEnabled(true);
-        ui->cbBetterPolygons->setEnabled(true);
+        case 0: // Software
+        {
+            ui->cbGLDisplay->setEnabled(true);
+            ui->cbSoftwareThreaded->setEnabled(true);
+            ui->cbxGLResolution->setEnabled(false);
+            ui->cbBetterPolygons->setEnabled(false);
+            break;
+        }
+        case 1: // OpenGL
+        {
+            ui->cbGLDisplay->setEnabled(false);
+            ui->cbSoftwareThreaded->setEnabled(false);
+            ui->cbxGLResolution->setEnabled(true);
+            ui->cbBetterPolygons->setEnabled(true);
+            break;
+        }
+        case 2: // Vulkan
+        {
+            ui->cbGLDisplay->setEnabled(false);
+            ui->cbSoftwareThreaded->setEnabled(false);
+            ui->cbxGLResolution->setEnabled(false);
+            ui->cbBetterPolygons->setEnabled(false);
+            break;
+        }
     }
 
     // sorry
@@ -108,7 +122,7 @@ void VideoSettingsDialog::on_VideoSettingsDialog_accepted()
 
 void VideoSettingsDialog::on_VideoSettingsDialog_rejected()
 {
-    bool old_gl = (Config::ScreenUseGL != 0) || (Config::_3DRenderer != 0);
+    bool old_gl = (Config::ScreenUseGL == true) || (Config::_3DRenderer != 0);
 
     Config::_3DRenderer = oldRenderer;
     Config::ScreenUseGL = oldGLDisplay;
@@ -118,7 +132,7 @@ void VideoSettingsDialog::on_VideoSettingsDialog_rejected()
     Config::GL_ScaleFactor = oldGLScale;
     Config::GL_BetterPolygons = oldGLBetterPolygons;
 
-    bool new_gl = (Config::ScreenUseGL != 0) || (Config::_3DRenderer != 0);
+    bool new_gl = (Config::ScreenUseGL == true) || (Config::_3DRenderer != 0);
     emit updateVideoSettings(old_gl != new_gl);
 
     closeDlg();
@@ -126,36 +140,49 @@ void VideoSettingsDialog::on_VideoSettingsDialog_rejected()
 
 void VideoSettingsDialog::onChange3DRenderer(int renderer)
 {
-    bool old_gl = (Config::ScreenUseGL != 0) || (Config::_3DRenderer != 0);
+    bool old_gl = (Config::ScreenUseGL == true) || (Config::_3DRenderer != 0);
 
     Config::_3DRenderer = renderer;
 
-    if (renderer == 0)
+    switch(Config::_3DRenderer)
     {
-        ui->cbGLDisplay->setEnabled(true);
-        ui->cbSoftwareThreaded->setEnabled(true);
-        ui->cbxGLResolution->setEnabled(false);
-        ui->cbBetterPolygons->setEnabled(false);
-    }
-    else
-    {
-        ui->cbGLDisplay->setEnabled(false);
-        ui->cbSoftwareThreaded->setEnabled(false);
-        ui->cbxGLResolution->setEnabled(true);
-        ui->cbBetterPolygons->setEnabled(true);
+        case 0: // Software
+        {
+            ui->cbGLDisplay->setEnabled(true);
+            ui->cbSoftwareThreaded->setEnabled(true);
+            ui->cbxGLResolution->setEnabled(false);
+            ui->cbBetterPolygons->setEnabled(false);
+            break;
+        }
+        case 1: // OpenGL
+        {
+            ui->cbGLDisplay->setEnabled(false);
+            ui->cbSoftwareThreaded->setEnabled(false);
+            ui->cbxGLResolution->setEnabled(true);
+            ui->cbBetterPolygons->setEnabled(true);
+            break;
+        }
+        case 2: // Vulkan
+        {
+            ui->cbGLDisplay->setEnabled(false);
+            ui->cbSoftwareThreaded->setEnabled(false);
+            ui->cbxGLResolution->setEnabled(false);
+            ui->cbBetterPolygons->setEnabled(false);
+            break;
+        }
     }
 
-    bool new_gl = (Config::ScreenUseGL != 0) || (Config::_3DRenderer != 0);
+    bool new_gl = (Config::ScreenUseGL == true) || (Config::_3DRenderer != 0);
     emit updateVideoSettings(old_gl != new_gl);
 }
 
 void VideoSettingsDialog::on_cbGLDisplay_stateChanged(int state)
 {
-    bool old_gl = (Config::ScreenUseGL != 0) || (Config::_3DRenderer != 0);
+    bool old_gl = (Config::ScreenUseGL == true) || (Config::_3DRenderer != 0);
 
     Config::ScreenUseGL = (state != 0);
 
-    bool new_gl = (Config::ScreenUseGL != 0) || (Config::_3DRenderer != 0);
+    bool new_gl = (Config::ScreenUseGL == true) || (Config::_3DRenderer != 0);
     emit updateVideoSettings(old_gl != new_gl);
 }
 

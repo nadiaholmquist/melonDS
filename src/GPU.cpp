@@ -390,33 +390,51 @@ void AssignFramebuffers()
 
 void InitRenderer(int renderer)
 {
-#ifdef OGLRENDERER_ENABLED
-    if (renderer == 1)
+    switch(renderer)
     {
-        CurGLCompositor = std::make_unique<GLCompositor>();
-        // Create opengl rendrerer
-        if (!CurGLCompositor->Init())
+        case 0: // Software
         {
-            // Fallback on software renderer
-            renderer = 0;
             GPU3D::CurrentRenderer = std::make_unique<GPU3D::SoftRenderer>();
             GPU3D::CurrentRenderer->Init();
+            break;
         }
-        GPU3D::CurrentRenderer = std::make_unique<GPU3D::GLRenderer>();
-        if (!GPU3D::CurrentRenderer->Init())
+#ifdef OGLRENDERER_ENABLED
+        case 1: // OpenGL
         {
-            // Fallback on software renderer
-            CurGLCompositor->DeInit();
-            CurGLCompositor.reset();
-            renderer = 0;
-            GPU3D::CurrentRenderer = std::make_unique<GPU3D::SoftRenderer>();
+            CurGLCompositor = std::make_unique<GLCompositor>();
+            // Create opengl rendrerer
+            if (!CurGLCompositor->Init())
+            {
+                // Fallback on software renderer
+                renderer = 0;
+                GPU3D::CurrentRenderer = std::make_unique<GPU3D::SoftRenderer>();
+                GPU3D::CurrentRenderer->Init();
+            }
+            GPU3D::CurrentRenderer = std::make_unique<GPU3D::GLRenderer>();
+            if (!GPU3D::CurrentRenderer->Init())
+            {
+                // Fallback on software renderer
+                CurGLCompositor->DeInit();
+                CurGLCompositor.reset();
+                renderer = 0;
+                GPU3D::CurrentRenderer = std::make_unique<GPU3D::SoftRenderer>();
+            }
+            break;
         }
-    }
-    else
 #endif
-    {
-        GPU3D::CurrentRenderer = std::make_unique<GPU3D::SoftRenderer>();
-        GPU3D::CurrentRenderer->Init();
+#ifdef VKRENDERER_ENABLED
+        case 2: // Vulkan
+        {
+            GPU3D::CurrentRenderer = std::make_unique<GPU3D::VulkanRenderer>();
+            if (!GPU3D::CurrentRenderer->Init())
+            {
+                // Fallback on software renderer
+                renderer = 0;
+                GPU3D::CurrentRenderer = std::make_unique<GPU3D::SoftRenderer>();
+            }
+            break;
+        }
+#endif
     }
 
     Renderer = renderer;
@@ -435,17 +453,13 @@ void DeInitRenderer()
 
 void ResetRenderer()
 {
-    if (Renderer == 0)
-    {
-        GPU3D::CurrentRenderer->Reset();
-    }
 #ifdef OGLRENDERER_ENABLED
-    else
+    if (Renderer == 1)
     {
         CurGLCompositor->Reset();
-        GPU3D::CurrentRenderer->Reset();
     }
 #endif
+    GPU3D::CurrentRenderer->Reset();
 }
 
 void SetRenderSettings(int renderer, RenderSettings& settings)
@@ -479,17 +493,13 @@ void SetRenderSettings(int renderer, RenderSettings& settings)
 
     AssignFramebuffers();
 
-    if (Renderer == 0)
-    {
-        GPU3D::CurrentRenderer->SetRenderSettings(settings);
-    }
 #ifdef OGLRENDERER_ENABLED
-    else
+    if (Renderer == 1)
     {
         CurGLCompositor->SetRenderSettings(settings);
-        GPU3D::CurrentRenderer->SetRenderSettings(settings);
     }
 #endif
+    GPU3D::CurrentRenderer->SetRenderSettings(settings);
 }
 
 

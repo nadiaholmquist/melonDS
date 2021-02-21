@@ -59,6 +59,14 @@ if (ENABLE_OGLRENDERER)
 	)
 endif()
 
+if (ENABLE_VKRENDERER)
+	target_sources(core PRIVATE
+		VulkanSupport.cpp
+		GPU_Vulkan.cpp
+		GPU3D_Vulkan.cpp
+	)
+endif()
+
 if (ENABLE_JIT)
 	enable_language(ASM)
 
@@ -123,4 +131,11 @@ else()
 	else()
 		target_link_libraries(core rt)
 	endif()
+endif()
+
+
+if (ENABLE_VKRENDERER)
+    find_package(Vulkan REQUIRED)
+    target_include_directories(core PRIVATE ${Vulkan_INCLUDE_DIRS})
+    target_link_libraries(core ${Vulkan_LIBRARIES})
 endif()
