@@ -1,4 +1,6 @@
 {
+	"name": "melonds",
+	"version": "1.0",
 	"default-features": ["qt6"],
 	"dependencies": [
 		"sdl2",
@@ -17,7 +19,9 @@
 		{
 			"name": "libslirp",
 			"platform": "linux"
-		}
+		},
+		{ "name": "pkgconf", "platform": "windows" },
+		{ "name": "dirent", "platform": "windows" }
 	],
 	"features": {
 		"qt6": {
