@@ -1,4 +1,6 @@
 {
+	"name": "melonds",
+	"version": "0.9.5",
 	"dependencies": [
 		"sdl2",
 		{
@@ -21,6 +23,8 @@
 			"name": "qtmultimedia",
 			"default-features": false
 		},
-		"qtsvg"
+		"qtsvg",
+		{ "name": "pkgconf", "platform": "windows" },
+		{ "name": "dirent", "platform": "windows" }
 	]
 }

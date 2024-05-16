@@ -44,8 +44,10 @@
 #include "SPI_Firmware.h"
 
 #ifdef __WIN32__
+#include <io.h>
 #define fseek _fseeki64
 #define ftell _ftelli64
+#define dup _dup
 #endif // __WIN32__
 
 std::string EmuDirectory;

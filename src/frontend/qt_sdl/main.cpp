@@ -427,18 +427,3 @@ int main(int argc, char** argv)
     Platform::DeInit();
     return ret;
 }
-
-#ifdef __WIN32__
-
-#include <windows.h>
-
-int CALLBACK WinMain(HINSTANCE hinst, HINSTANCE hprev, LPSTR cmdline, int cmdshow)
-{
-    int ret = main(__argc, __argv);
-
-    printf("\n\n>");
-
-    return ret;
-}
-
-#endif
