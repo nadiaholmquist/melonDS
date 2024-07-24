@@ -18,22 +18,24 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-    - uses: actions/checkout@v1
-    - uses: msys2/setup-msys2@v2
+    - name: Check out source code
+      uses: actions/checkout@v4
+    - name: Set up MSYS2
+      uses: msys2/setup-msys2@v2
       with:
         msystem: UCRT64
         update: true
         install: pkgconf
         pacboy: >-
-          gcc:p cmake:p ninja:p SDL2:p qt5-static:p libarchive:p
+          gcc:p cmake:p ninja:p SDL2:p qt5-static:p libarchive:p pcre2:p
 
     - name: Configure
       run: cmake -B build -DBUILD_STATIC=ON -DCMAKE_PREFIX_PATH=/ucrt64/qtr5-static
 
     - name: Build
-      run: cmake --build .
+      run: cmake --build build
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v4
       with:
         name: melonDS-windows-x86_64
         path: ${{runner.workspace}}\build\melonDS.exe
