@@ -23,7 +23,7 @@ jobs:
       with:
         msystem: UCRT64
         update: true
-        install: git ppkgconf
+        install: pkgconf
         pacboy: >-
           gcc:p cmake:p ninja:p SDL2:p qt5-static:p libarchive:p
 
