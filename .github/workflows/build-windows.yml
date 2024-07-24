@@ -4,10 +4,10 @@ on:
   push:
     branches:
       - master
+      - ci/more-windows-stuff
   pull_request:
     branches:
       - master
-      - ci/more-windows-stuff
 
 jobs:
   build:
