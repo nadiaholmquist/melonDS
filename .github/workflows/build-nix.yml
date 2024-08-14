@@ -16,4 +16,12 @@ jobs:
     - name: Install Nix
       uses: cachix/install-nix-action@v27
     - name: Build
-      run: nix build
+      run: nix build -L
+    - name: Fetch AppImage tools
+      run: |
+        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        wget https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+        chmod a+x linuxdeploy-*.AppImage
+    - name: Build the AppImage
+      run: |
+        ./linuxdeploy-x86_64.AppImage --appdir result --plugin qt --output appimage
