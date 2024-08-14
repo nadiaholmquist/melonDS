@@ -1,0 +1,19 @@
+name: Nix
+
+on:
+  push:
+    branches:
+      - master
+      - nix-ci-playground
+
+jobs:
+  build-flake:
+    name: Flake build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out source
+      uses: actions/checkout@v4
+    - name: Install Nix
+      uses: cachix/install-nix-action@v27
+    - name: Build
+      run: nix build
