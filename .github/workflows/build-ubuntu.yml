@@ -43,7 +43,7 @@ jobs:
         with:
           configurePreset: release-linux
           buildPreset: release-linux
-          configurePresetAdditionalArgs: "['-DMELONDS_EMBED_BUILD_INFO=ON' '-DCMAKE_INSTALL_PREFIX=/usr']"
+          configurePresetAdditionalArgs: "['-DMELONDS_EMBED_BUILD_INFO=ON', '-DCMAKE_INSTALL_PREFIX=/usr']"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
