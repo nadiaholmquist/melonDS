@@ -32,7 +32,7 @@
 					"name": "qtbase",
 					"platform": "linux",
 					"default-features": false,
-					"features": ["dbus", "xcb", "xkb", "xcb-xlib", "freetype", "fontconfig"]
+					"features": ["default-features", "dbus"]
 				},
 				{
 					"name": "qtbase",
@@ -49,6 +49,10 @@
 					"features": ["gstreamer"],
 					"default-features": false
 				},
+                {
+                    "name": "qtwayland",
+                    "platform": "linux"
+                },
 				"qtsvg"
 			]
 		},
