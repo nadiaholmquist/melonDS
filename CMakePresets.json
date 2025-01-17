@@ -46,6 +46,19 @@
       "displayName": "macOS release (arm64)",
       "binaryDir": "${sourceDir}/build/release-mac-arm64",
       "cacheVariables": { "CMAKE_OSX_ARCHITECTURES": "arm64" }
+    },
+    {
+      "name": "release-linux",
+      "inherits": "release-vcpkg",
+      "displayName": "Linux release",
+      "binaryDir": "${sourceDir}/build/release-linux",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "BUILD_STATIC": {
+          "type": "BOOL",
+          "value": "ON"
+        }
+      }
     }
   ],
   "buildPresets": [
@@ -68,6 +81,10 @@
     {
       "name": "release-mac-arm64",
       "configurePreset": "release-mac-arm64"
+    },
+    {
+      "name": "release-linux",
+      "configurePreset": "release-linux"
     }
   ],
   "workflowPresets": [
@@ -99,6 +116,14 @@
       "steps": [
         { "type": "configure", "name": "release-mac-arm64" },
         { "type": "build", "name": "release-mac-arm64" }
+      ]
+    },
+    {
+      "name": "release-linux",
+      "displayName": "Release Linux",
+      "steps": [
+        { "type": "configure", "name": "release-linux" },
+        { "type": "build", "name": "release-linux" }
       ]
     }
   ]

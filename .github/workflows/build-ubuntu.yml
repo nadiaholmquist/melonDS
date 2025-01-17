@@ -4,7 +4,8 @@ on:
   push:
     branches:
       - master
-      - ci/*
+      - ci/vcpkg-update
+      - ci/linux-vcpkg
   pull_request:
     branches:
       - master
@@ -16,47 +17,35 @@ env:
   MELONDS_VERSION_SUFFIX: " RC"
 
 jobs:
-  build-x86_64:
+  build-ubuntu:
     strategy:
       matrix:
         arch:
-          - runner: ubuntu-22.04
-            name: x86_64
-          - runner: ubuntu-22.04-arm
-            name: aarch64
+          - name: x86_64
+            runner: ubuntu-22.04
 
     name: ${{ matrix.arch.name }}
     runs-on: ${{ matrix.arch.runner }}
-
     steps:
-    - uses: actions/checkout@v4
-      name: Check out sources
-    - name: Install dependencies
-      run: |
-        sudo apt update
-        sudo apt install --allow-downgrades cmake ninja-build extra-cmake-modules libpcap0.8-dev libsdl2-dev libenet-dev \
-          qt6-{base,base-private,multimedia}-dev libqt6svg6-dev libarchive-dev libzstd-dev libfuse2
-    - name: Configure
-      run: cmake -B build -G Ninja -DCMAKE_INSTALL_PREFIX=/usr -DMELONDS_EMBED_BUILD_INFO=ON
-    - name: Build
-      run: |
-        cmake --build build
-        DESTDIR=AppDir cmake --install build
-    - uses: actions/upload-artifact@v4
-      with:
-        name: melonDS-ubuntu-${{ matrix.arch.name }}
-        path: AppDir/usr/bin/melonDS
-    - name: Fetch AppImage tools
-      run: |
-        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.arch.name }}.AppImage
-        wget https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${{ matrix.arch.name }}.AppImage
-        chmod a+x linuxdeploy-*.AppImage
-    - name: Build the AppImage
-      env:
-        QMAKE: /usr/lib/qt6/bin/qmake
-      run: |
-        ./linuxdeploy-${{ matrix.arch.name }}.AppImage --appdir AppDir --plugin qt --output appimage
-    - uses: actions/upload-artifact@v4
-      with:
-        name: melonDS-appimage-${{ matrix.arch.name }}
-        path: melonDS*.AppImage
+      - name: Check out sources
+        uses: actions/checkout@v3
+      - name: Install dependencies for package building
+        run: |
+          sudo apt install cmake ninja-build g++ pkg-config bison flex autoconf automake libtool python3-jinja2 nasm \
+            libx11-dev libxft-dev libxext-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev libibus-1.0-dev \
+            '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev libegl1-mesa-dev
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: b2cb0da531c2f1f740045bfe7c4dac59f0b2b69c
+      - name: Build
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: release-linux
+          buildPreset: release-linux
+          configurePresetAdditionalArgs: "['-DMELONDS_EMBED_BUILD_INFO=ON']"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-${{ matrix.arch.name }}
+          path: build/release-linux/melonDS
