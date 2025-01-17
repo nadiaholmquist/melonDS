@@ -43,9 +43,25 @@ jobs:
         with:
           configurePreset: release-linux
           buildPreset: release-linux
-          configurePresetAdditionalArgs: "['-DMELONDS_EMBED_BUILD_INFO=ON']"
+          configurePresetAdditionalArgs: "['-DMELONDS_EMBED_BUILD_INFO=ON' '-DCMAKE_INSTALL_PREFIX=/usr']"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ubuntu-${{ matrix.arch.name }}
           path: build/release-linux/melonDS
+      - name: Fetch appimagetool
+        run: |
+          wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${{ matrix.arch.name }}.AppImage
+          chmod +x appimagetool-${{ matrix.arch.name }}.AppImage
+      - name: Build AppImage
+        run: |
+          DESTDIR=AppDir cmake --install build/release-linux
+          ln -s AppDir/usr/bin/melonDS AppDir/AppRun
+          ln -s AppDir/usr/share/applications/net.kuribo64.melonDS.desktop AppDir/.
+          ln -s AppDir/usr/share/icons/hicolor/256x256/apps/net.kuribo64.melonDS.png AppDir/.
+          ./appimagetool-${{ matrix.arch.name }}.AppImage AppDir
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: appimage-${{ matrix.arch.name }}
+          path: melonDS-${{ matrix.arch.name }}.AppImage
