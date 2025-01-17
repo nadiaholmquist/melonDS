@@ -33,7 +33,7 @@ jobs:
         run: |
           sudo apt install cmake ninja-build g++ pkg-config bison flex autoconf automake libtool python3-jinja2 nasm \
             libx11-dev libxft-dev libxext-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev libibus-1.0-dev \
-            '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev libegl1-mesa-dev
+            '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev libegl1-mesa-dev libcap-dev
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
         with:
