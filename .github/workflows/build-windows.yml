@@ -30,9 +30,9 @@ jobs:
         vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
     - name: Configure
       run: |
-        dir C:\msys64
-        dir C:\msys64\ucrt64
+        echo shit
         dir C:\msys64\ucrt64\bin
+        echo shit2
         exit
         cmake `
           --preset=release-mingw-x86_64 `
