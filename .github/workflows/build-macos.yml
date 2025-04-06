@@ -32,6 +32,8 @@ jobs:
           brew install autoconf automake autoconf-archive libtool python-setuptools
       - name: Set up CMake
         uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
         with:

@@ -30,7 +30,11 @@ jobs:
       with:
         msystem: ucrt64
         update: true
-        pacboy: gcc:p cmake:p ninja:p make:p
+        pacboy: gcc:p make:p
+    - name: Set up CMake
+      uses: lukka/get-cmake@latest
+      with:
+        cmakeVersion: 3.31.6
     - name: Set up vcpkg
       uses: lukka/run-vcpkg@v11
       with:
