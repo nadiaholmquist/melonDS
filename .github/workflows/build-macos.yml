@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - ci/vcpkg-update
   pull_request:
     branches:
       - master
