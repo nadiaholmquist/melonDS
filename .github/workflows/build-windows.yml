@@ -23,7 +23,7 @@ jobs:
     - name: Check out sources
       uses: actions/checkout@v3
     - name: Install toolchain
-      shell: msys2bash
+      shell: msys2bash.cmd
       run: pacman -S --noconfirm mingw-w64-ucrt-x86_64-toolchain
     - name: Set up CMake
       uses: lukka/get-cmake@v3.31.6
