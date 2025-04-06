@@ -22,8 +22,7 @@ jobs:
     steps:
     - name: Check out sources
       uses: actions/checkout@v3
-    - name: Install toolchain
-      shell: msys2
+    - shell: C:\msys64\ucrt64.exe
       run: pacman -S --noconfirm mingw-w64-ucrt-x86_64-toolchain
     - name: Set up CMake
       uses: lukka/get-cmake@v3.31.6
