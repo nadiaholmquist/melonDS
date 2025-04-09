@@ -33,6 +33,8 @@ jobs:
         msystem: ucrt64
         path-type: inherit
         pacbopy: gcc:p
+    - name: a
+      run: rm -rf C:/mingw64
     - name: Set up vcpkg
       uses: lukka/run-vcpkg@v11
       with:
