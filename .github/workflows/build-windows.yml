@@ -39,9 +39,7 @@ jobs:
         vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
     - name: Configure
       run: |
-        cmake `
-          --preset=release-mingw-x86_64 `
-          -DMELONDS_EMBED_BUILD_INFO=ON 
+        cmake --preset=release-mingw-x86_64 -DMELONDS_EMBED_BUILD_INFO=ON 
     - name: Build
       run: cmake --build --preset=release-mingw-x86_64
     - uses: actions/upload-artifact@v4
