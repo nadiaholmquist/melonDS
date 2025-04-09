@@ -19,22 +19,25 @@ env:
 jobs:
   build:
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
     steps:
     - name: Check out sources
       uses: actions/checkout@v3
-    - shell: C:\msys64\msys2.exe {0}
-      run: pacman -S --noconfirm mingw-w64-ucrt-x86_64-toolchain
     - name: Set up CMake
       uses: lukka/get-cmake@v3.31.6
+    - name: Set up MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: ucrt64
+        path-type: inherit
+        pacbopy: gcc:p
     - name: Set up vcpkg
       uses: lukka/run-vcpkg@v11
       with:
         vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
     - name: Configure
-      env:
-        MSYSTEM: UCRT64
-        CC: C:\msys64\ucrt64\bin\gcc.exe
-        CXX: C:\msys64\ucrt64\bin\g++.exe
       run: |
         cmake `
           --preset=release-mingw-x86_64 `
