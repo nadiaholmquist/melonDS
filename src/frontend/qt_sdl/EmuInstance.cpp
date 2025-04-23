@@ -2148,6 +2148,8 @@ QString EmuInstance::gbaAddonName(int addon)
         return "Solar Sensor (Boktai 2)";
     case GBAAddon_SolarSensorBoktai3:
         return "Solar Sensor (Boktai 3)";
+    case GBAAddon_Analog:
+        return "Analog Input (Homebrew)";
     }
 
     return "???";
