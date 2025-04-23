@@ -33,6 +33,7 @@ enum CartType
     GameSolarSensor = 0x102,
     RAMExpansion = 0x201,
     RumblePak = 0x202,
+    Analog = 0x303,
 };
 
 // See https://problemkaputt.de/gbatek.htm#gbacartridgeheader for details
@@ -68,6 +69,7 @@ public:
     virtual void DoSavestate(Savestate* file);
 
     virtual int SetInput(int num, bool pressed);
+    virtual int SetInput(int num, float value);
 
     virtual u16 ROMRead(u32 addr) const;
     virtual void ROMWrite(u32 addr, u16 val);
@@ -237,6 +239,28 @@ enum
 {
     Input_SolarSensorDown = 0,
     Input_SolarSensorUp,
+    Input_AnalogX,
+    Input_AnalogY,
+};
+
+// CartAnalog - Fake Slot-2 analog stick card used for ROM hacks
+class CartAnalog : public CartCommon
+{
+public:
+    CartAnalog();
+    ~CartAnalog() override;
+
+    void Reset() override;
+    void DoSavestate(Savestate* file) override;
+
+    // values should be -1.0..1.0
+    int SetInput(int num, float value) override;
+
+    u16 ROMRead(u32 addr) const override;
+
+private:
+    float X;
+    float Y;
 };
 
 class GBACartSlot
@@ -268,6 +292,7 @@ public:
 
     // TODO: make more flexible, support nonbinary inputs
     int SetInput(int num, bool pressed) noexcept;
+    int SetInput(int num, float value) noexcept;
 
     void SetOpenBusDecay(u16 val) noexcept { OpenBusDecay = val; }
 
