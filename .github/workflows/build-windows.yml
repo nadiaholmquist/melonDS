@@ -18,7 +18,7 @@ env:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-11-arm
     defaults:
       run:
         shell: msys2 {0}
@@ -28,7 +28,7 @@ jobs:
     - name: Set up MSYS2
       uses: msys2/setup-msys2@v2
       with:
-        msystem: ucrt64
+        msystem: clangarm64
         update: true
         pacboy: gcc:p cmake:p ninja:p make:p
     - name: Set up vcpkg
@@ -36,10 +36,10 @@ jobs:
       with:
         vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
     - name: Configure
-      run: cmake --preset=release-mingw-x86_64 -DMELONDS_EMBED_BUILD_INFO=ON
+      run: cmake --preset=release-mingw -DMELONDS_EMBED_BUILD_INFO=ON -DENABLE_JIT=OFF
     - name: Build
-      run: cmake --build --preset=release-mingw-x86_64
+      run: cmake --build --preset=release-mingw
     - uses: actions/upload-artifact@v4
       with:
-        name: melonDS-windows-x86_64
-        path: .\build\release-mingw-x86_64\melonDS.exe
+        name: melonDS-windows-arm64
+        path: .\build\release-mingw\melonDS.exe

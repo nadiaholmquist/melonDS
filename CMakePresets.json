@@ -21,10 +21,10 @@
       }
     },
     {
-      "name": "release-mingw-x86_64",
+      "name": "release-mingw",
       "inherits": "release-vcpkg",
-      "displayName": "Windows MinGW release (x86_64)",
-      "binaryDir": "${sourceDir}/build/release-mingw-x86_64",
+      "displayName": "Windows MinGW release",
+      "binaryDir": "${sourceDir}/build/release-mingw",
       "generator": "Ninja",
       "cacheVariables": {
         "BUILD_STATIC": {
