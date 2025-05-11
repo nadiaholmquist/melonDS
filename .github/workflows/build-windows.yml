@@ -30,7 +30,7 @@ jobs:
       with:
         msystem: clangarm64
         update: true
-        pacboy: gcc:p cmake:p ninja:p make:p
+        pacboy: toolchain:p cmake:p ninja:p make:p
     - name: Set up vcpkg
       uses: lukka/run-vcpkg@v11
       with:
