@@ -28,7 +28,7 @@
 ## Windows
 1. Install [MSYS2](https://www.msys2.org/)
 2. Open the MSYS2 terminal from the Start menu:
-   * For x64 systems (most common), use **MSYS2 UCRT64**
+   * For x64 systems (most common), use **MSYS2 CLANG64**
    * For ARM64 systems, use **MSYS2 CLANGARM64**
 3. Update the packages using `pacman -Syu` and reopen the same terminal if it asks you to
 4. Install git and clone the repository
@@ -38,16 +38,16 @@
    cd melonDS
    ```
 5. Install dependencies:  
-   Replace `<prefix>` below with `mingw-w64-ucrt-x86_64` on x64 systems, or `mingw-w64-clang-aarch64` on ARM64 systems.
+   Replace `<arch>` below with `x86_64` on x64 systems, or `aarch64` on ARM64 systems.
    ```bash
-   pacman -S <prefix>-{toolchain,cmake,SDL2,libarchive,enet,zstd}
+   pacman -S mingw-w64-clang-<arch>-{toolchain,cmake,SDL2,libarchive,enet,zstd}
    ```
 6. Install Qt and configure the build directory
    * Dynamic builds (with DLLs)
-     1. Install Qt: `pacman -S <prefix>-{qt6-base,qt6-svg,qt6-multimedia,qt6-svg,qt6-tools}`
+     1. Install Qt: `pacman -S mingw-w64-clang-<arch>-{qt6-base,qt6-svg,qt6-multimedia,qt6-svg,qt6-tools}`
      2. Set up the build directory with `cmake -B build`
    * Static builds (without DLLs, standalone executable)
-     1. Install Qt: `pacman -S <prefix>-qt5-static`  
+     1. Install Qt: `pacman -S mingw-w64-clang-<arch>-qt5-static`  
         (Note: As of writing, the `qt6-static` package does not work.)
      2. Set up the build directory with `cmake -B build -DBUILD_STATIC=ON -DUSE_QT6=OFF -DCMAKE_PREFIX_PATH=$MSYSTEM_PREFIX/qt5-static`
 7. Compile: `cmake --build build`

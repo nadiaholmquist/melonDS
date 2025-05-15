@@ -28,9 +28,9 @@ jobs:
     - name: Set up MSYS2
       uses: msys2/setup-msys2@v2
       with:
-        msystem: ucrt64
+        msystem: clang64
         update: true
-        pacboy: gcc:p cmake:p ninja:p make:p
+        pacboy: toolchain:p cmake:p ninja:p make:p
     - name: Set up vcpkg
       uses: lukka/run-vcpkg@v11
       with:
