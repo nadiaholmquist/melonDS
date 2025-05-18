@@ -17,6 +17,10 @@
 		{
 			"name": "libslirp",
 			"platform": "linux"
+		},
+		{
+			"name": "pkgconf",
+			"platform": "windows | mingw"
 		}
 	],
 	"features": {
