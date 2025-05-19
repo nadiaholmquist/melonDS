@@ -33,7 +33,9 @@ jobs:
     - name: Add toolchain to PATH
       run: Add-Content $Env:GITHUB_PATH "${Env:GITHUB_WORKSPACE}/llvm-mingw-${Env:LLVM_MINGW_VERSION}-ucrt-x86_64/bin"
     - name: Install CMake
-      uses: lukka/get-cmake
+      uses: lukka/get-cmake@latest
+      with:
+        cmakeVersion: "~4"
     - name: Set up vcpkg
       uses: lukka/run-vcpkg@v11
       with:
