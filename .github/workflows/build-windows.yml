@@ -10,7 +10,7 @@ on:
       - master
 
 env:
-  VCPKG_COMMIT: 2ad004460f5db4d3b66f62f5799ff66c265c4b5d
+  VCPKG_COMMIT: ef7dbf94b9198bc58f45951adcf1f041fcbc5ea0
   MELONDS_GIT_BRANCH: ${{ github.ref }}
   MELONDS_GIT_HASH: ${{ github.sha }}
   MELONDS_BUILD_PROVIDER: GitHub Actions
