@@ -32,6 +32,8 @@ jobs:
         pacboy: gcc:p cmake:p ninja:p make:p
     - name: Set up vcpkg
       uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgJsonGlob: **/melonDS/vcpkg.json
     - name: Configure
       run: cmake --preset=release-mingw-x86_64 -DMELONDS_EMBED_BUILD_INFO=ON
     - name: Build

@@ -33,6 +33,8 @@ jobs:
         uses: lukka/get-cmake@latest
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: **/melonDS/vcpkg.json
       - name: Build
         uses: lukka/run-cmake@v10
         with:
