@@ -21,6 +21,8 @@ jobs:
     defaults:
       run:
         shell: msys2 {0}
+    env:
+      VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/vcpkg_cache,readwrite
     steps:
     - name: Check out sources
       uses: actions/checkout@v3
@@ -30,6 +32,12 @@ jobs:
         msystem: ucrt64
         update: true
         pacboy: gcc:p cmake:p ninja:p make:p
+    - name: Restore vcpkg cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ github.workspace }}/vcpkg_cache
+        key: vcpkg-x86_64-mingw-${{ hashFiles('vcpkg.json') }}
+        restore-keys: vcpkg-x86_64-mingw-
     - name: Set up vcpkg
       uses: lukka/run-vcpkg@v11
       with:
@@ -42,3 +50,8 @@ jobs:
       with:
         name: melonDS-windows-x86_64
         path: .\build\release-mingw-x86_64\melonDS.exe
+    - name: Save vcpkg cache
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ github.workspace }}/vcpkg_cache
+        key: vcpkg-x86_64-mingw-${{ hashFiles('vcpkg.json') }}
