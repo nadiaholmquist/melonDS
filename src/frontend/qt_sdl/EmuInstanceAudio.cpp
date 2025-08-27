@@ -37,32 +37,28 @@ void EmuInstance::audioInit()
     audioDSiVolumeSync = localCfg.GetBool("Audio.DSiVolumeSync");
 
     audioMuted = false;
-    audioSyncCond = SDL_CreateCond();
+    audioSyncCond = SDL_CreateCondition();
     audioSyncLock = SDL_CreateMutex();
 
-    audioFreq = 48000; // TODO: make both of these configurable?
+    audioFreq = 47743; // TODO: make both of these configurable?
     audioBufSize = 1024;
 
-    SDL_AudioSpec whatIwant, whatIget;
-    memset(&whatIwant, 0, sizeof(SDL_AudioSpec));
-    whatIwant.freq = audioFreq;
-    whatIwant.format = AUDIO_S16LSB;
-    whatIwant.channels = 2;
-    whatIwant.samples = audioBufSize;
-    whatIwant.callback = audioCallback;
-    whatIwant.userdata = this;
-    audioDevice = SDL_OpenAudioDevice(NULL, 0, &whatIwant, &whatIget, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
+    SDL_AudioSpec audioSpec = {};
+    audioSpec.freq = audioFreq;
+    audioSpec.format = SDL_AUDIO_S16LE;
+    audioSpec.channels = 2;
+
+    audioDevice = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &audioSpec, audioCallback, this);
+
     if (!audioDevice)
     {
         Platform::Log(Platform::LogLevel::Error, "Audio init failed: %s\n", SDL_GetError());
     }
     else
     {
-        audioFreq = whatIget.freq;
-        audioBufSize = whatIget.samples;
         Platform::Log(Platform::LogLevel::Info, "Audio output frequency: %d Hz\n", audioFreq);
         Platform::Log(Platform::LogLevel::Info, "Audio output buffer size: %d samples\n", audioBufSize);
-        SDL_PauseAudioDevice(audioDevice, 1);
+        SDL_ResumeAudioStreamDevice(audioDevice);
     }
 
     audioSampleFrac = 0;
@@ -77,14 +73,35 @@ void EmuInstance::audioInit()
     setupMicInputData();
 }
 
+void EmuInstance::audioCallback(void* data, SDL_AudioStream* stream, int additional, int total)
+{
+    EmuInstance* inst = (EmuInstance*) data;
+    if (inst == nullptr || inst->nds == nullptr || additional == 0) return;
+
+    double rate = inst->curFPS / 59.826098288f;
+    //SDL_SetAudioStreamFrequencyRatio(stream, std::clamp(rate, 0.995, 1.005));
+    SDL_SetAudioStreamFrequencyRatio(stream, 1.00000975868923192929);
+
+    int n = inst->nds->SPU.GetOutputSize() * (2 * sizeof(s16));
+    int toRead = std::min(additional, n);
+
+    printf("queued %d, avail %d\n", SDL_GetAudioStreamQueued(stream), inst->nds->SPU.GetOutputSize());
+    printf("cur %f, target %f, samples %d, add %d, total %d\n", inst->curFPS, inst->targetFPS, n, additional, total);
+
+    s16 samples[toRead];
+    inst->nds->SPU.ReadOutput(samples, toRead / (2 * sizeof(s16)));
+    SDL_PutAudioStreamData(stream, samples, toRead);
+}
+
+
 void EmuInstance::audioDeInit()
 {
-    if (audioDevice) SDL_CloseAudioDevice(audioDevice);
-    audioDevice = 0;
+    if (audioDevice) SDL_DestroyAudioStream(audioDevice);
+    audioDevice = nullptr;
     micClose();
     micStarted = false;
 
-    if (audioSyncCond) SDL_DestroyCond(audioSyncCond);
+    if (audioSyncCond) SDL_DestroyCondition(audioSyncCond);
     audioSyncCond = nullptr;
 
     if (audioSyncLock) SDL_DestroyMutex(audioSyncLock);
@@ -130,8 +147,8 @@ void EmuInstance::audioSync()
         SDL_LockMutex(audioSyncLock);
         while (nds->SPU.GetOutputSize() > audioBufSize)
         {
-            int ret = SDL_CondWaitTimeout(audioSyncCond, audioSyncLock, 500);
-            if (ret == SDL_MUTEX_TIMEDOUT) break;
+            if (!SDL_WaitConditionTimeout(audioSyncCond, audioSyncLock, 500))
+                break;
         }
         SDL_UnlockMutex(audioSyncLock);
     }
@@ -147,7 +164,9 @@ int EmuInstance::audioGetNumSamplesOut(int outlen)
     return len_in;
 }
 
-void EmuInstance::audioCallback(void* data, Uint8* stream, int len)
+
+/*
+void EmuInstance::audioCallback(void* data, SDL_AudioStream* stream, int additional, int total)
 {
     EmuInstance* inst = (EmuInstance*)data;
     len /= (sizeof(s16) * 2);
@@ -186,6 +205,7 @@ void EmuInstance::audioCallback(void* data, Uint8* stream, int len)
             ((u32*)stream)[i] = ((u32*)stream)[last];
     }
 }
+*/
 
 
 // --- MIC INPUT --------------------------------------------------------------
@@ -206,37 +226,19 @@ void EmuInstance::micOpen()
         return;
     }
 
-    int numMics = SDL_GetNumAudioDevices(1);
-    if (numMics == 0)
-        return;
+    micFreq = 47743;
+    SDL_AudioSpec micSpec = { SDL_AUDIO_S16LE, 2, micFreq };
+    micDevice = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_RECORDING, &micSpec, nullptr, this);
 
-    micFreq = 48000;
-    micBufSize = 1024;
-    SDL_AudioSpec whatIwant, whatIget;
-    memset(&whatIwant, 0, sizeof(SDL_AudioSpec));
-    whatIwant.freq = micFreq;
-    whatIwant.format = AUDIO_S16LSB;
-    whatIwant.channels = 1;
-    whatIwant.samples = micBufSize;
-    whatIwant.callback = micCallback;
-    whatIwant.userdata = this;
-    const char* mic = NULL;
-    if (micDeviceName != "")
-    {
-        mic = micDeviceName.c_str();
-    }
-    micDevice = SDL_OpenAudioDevice(mic, 1, &whatIwant, &whatIget, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE);
     if (!micDevice)
     {
         Platform::Log(Platform::LogLevel::Error, "Mic init failed: %s\n", SDL_GetError());
     }
     else
     {
-        micFreq = whatIget.freq;
-        micBufSize = whatIget.samples;
         Platform::Log(Platform::LogLevel::Info, "Mic output frequency: %d Hz\n", micFreq);
         Platform::Log(Platform::LogLevel::Info, "Mic output buffer size: %d samples\n", micBufSize);
-        SDL_PauseAudioDevice(micDevice, 0);
+        SDL_ResumeAudioStreamDevice(micDevice);
     }
 
     micSampleFrac = 0;
@@ -245,7 +247,7 @@ void EmuInstance::micOpen()
 void EmuInstance::micClose()
 {
     if (micDevice)
-        SDL_CloseAudioDevice(micDevice);
+        SDL_DestroyAudioStream(micDevice);
 
     micDevice = 0;
 }
@@ -264,10 +266,9 @@ void EmuInstance::micStop()
 
 void EmuInstance::micLoadWav(const std::string& name)
 {
-    SDL_AudioSpec format;
-    memset(&format, 0, sizeof(SDL_AudioSpec));
+    SDL_AudioSpec format = {};
 
-    if (micWavBuffer) delete[] micWavBuffer;
+    if (micWavBuffer) SDL_free(micWavBuffer);
     micWavBuffer = nullptr;
     micWavLength = 0;
 
@@ -278,57 +279,29 @@ void EmuInstance::micLoadWav(const std::string& name)
 
     if (len > 0x4000000)
     {
-        SDL_FreeWAV(buf);
+        SDL_free(buf);
         return;
     }
 
-    SDL_AudioCVT cvt;
-    int cvtres = SDL_BuildAudioCVT(&cvt,
-        format.format, format.channels, format.freq,
-        AUDIO_S16LSB, 1, 47743);
+    s16* out;
+    int outLen;
+    SDL_AudioSpec inSpec = { SDL_AUDIO_S16LE, 1, 47743 };
+    bool cvtres = SDL_ConvertAudioSamples(&format, buf, len, &inSpec, (u8**) &out, &outLen);
 
-    if (cvtres < 0)
+    if (cvtres)
     {
-        // failure
-        SDL_FreeWAV(buf);
-        return;
+        micWavBuffer = out;
+        micWavLength = outLen;
     }
 
-    if (cvtres == 0)
-    {
-        // no conversion needed
-        micWavLength = len >> 1;
-        micWavBuffer = new s16[micWavLength];
-        memcpy(micWavBuffer, buf, len);
-    }
-    else
-    {
-        // apply conversion
-        cvt.len = len;
-        cvt.buf = new u8[cvt.len * cvt.len_mult];
-        memcpy(cvt.buf, buf, len);
-
-        if (SDL_ConvertAudio(&cvt) < 0)
-        {
-            delete[] cvt.buf;
-            SDL_FreeWAV(buf);
-            return;
-        }
-
-        micWavLength = cvt.len_cvt >> 1;
-        micWavBuffer = new s16[micWavLength];
-        memcpy(micWavBuffer, cvt.buf, cvt.len_cvt);
-        delete[] cvt.buf;
-    }
-
-    SDL_FreeWAV(buf);
+    SDL_free(buf);
 }
 
 void EmuInstance::setupMicInputData()
 {
     if (micWavBuffer != nullptr)
     {
-        delete[] micWavBuffer;
+        SDL_free(micWavBuffer);
         micWavBuffer = nullptr;
         micWavLength = 0;
     }
@@ -344,8 +317,8 @@ void EmuInstance::setupMicInputData()
             micBufferLength = 0;
             break;
         case micInputType_External:
-            micBuffer = micExtBuffer;
-            micBufferLength = sizeof(micExtBuffer) / sizeof(s16);
+            micBuffer = nullptr;
+            micBufferLength = 0;
             break;
         case micInputType_Noise:
             micBuffer = (s16*)&mic_blow[0];
@@ -364,8 +337,6 @@ void EmuInstance::setupMicInputData()
 int EmuInstance::micReadInput(s16* data, int maxlength)
 {
     int type = micInputType;
-    if ((type == micInputType_External) && (micExtBufferCount == 0))
-        return 0;
 
     bool cmd = hotkeyDown(HK_Mic);
 
@@ -383,106 +354,33 @@ int EmuInstance::micReadInput(s16* data, int maxlength)
     }
 
     if (type == micInputType_External)
-        SDL_LockMutex(micLock);
-
-    int readlength = 0;
-    while (readlength < maxlength)
     {
-        int thislen = maxlength - readlength;
-        if ((micBufferReadPos + thislen) > micBufferLength)
-            thislen = micBufferLength - micBufferReadPos;
-
-        if (type == micInputType_External)
+        return SDL_GetAudioStreamData(micDevice, data, maxlength * 2) / 2;
+    }
+    else
+    {
+        int readlength = 0;
+        while (readlength < maxlength)
         {
-            if (thislen > micExtBufferCount)
-                thislen = micExtBufferCount;
+            int thislen = maxlength - readlength;
+            if ((micBufferReadPos + thislen) > micBufferLength)
+                thislen = micBufferLength - micBufferReadPos;
 
-            micExtBufferCount -= thislen;
+            if (!thislen)
+                break;
+
+            memcpy(data, &micBuffer[micBufferReadPos], thislen * sizeof(s16));
+            data += thislen;
+            micBufferReadPos += thislen;
+            if (micBufferReadPos >= micBufferLength)
+                micBufferReadPos -= micBufferLength;
+
+            readlength += thislen;
         }
 
-        if (!thislen)
-            break;
-
-        memcpy(data, &micBuffer[micBufferReadPos], thislen * sizeof(s16));
-        data += thislen;
-        micBufferReadPos += thislen;
-        if (micBufferReadPos >= micBufferLength)
-            micBufferReadPos -= micBufferLength;
-
-        readlength += thislen;
-    }
-
-    if (type == micInputType_External)
-        SDL_UnlockMutex(micLock);
-
-    return readlength;
-}
-
-int EmuInstance::micGetNumSamplesIn(int inlen)
-{
-    float f_len_out = (inlen * 47743.4659091 * (curFPS/60.0)) / (float)micFreq;
-    f_len_out += micSampleFrac;
-    int len_out = (int)floor(f_len_out);
-    micSampleFrac = f_len_out - len_out;
-
-    return len_out;
-}
-
-void EmuInstance::micResample(s16* inbuf, int inlen)
-{
-    int maxlen = sizeof(micExtBuffer) / sizeof(s16);
-    int outlen = micGetNumSamplesIn(inlen);
-
-    // alter output length slightly to keep the buffer happy
-    if (micExtBufferCount < (maxlen >> 2))
-        outlen += 6;
-    else if (micExtBufferCount > (3 * (maxlen >> 2)))
-        outlen -= 6;
-
-    float res_incr = inlen / (float)outlen;
-    float res_timer = -0.5;
-    int res_pos = 0;
-
-    for (int i = 0; i < outlen; i++)
-    {
-        if (micExtBufferCount >= maxlen)
-            break;
-
-        s16 s1 = inbuf[res_pos];
-        s16 s2 = inbuf[res_pos + 1];
-
-        float s = (float)s1 + ((s2 - s1) * res_timer);
-
-        micExtBuffer[micExtBufferWritePos] = (s16)round(s);
-        micExtBufferWritePos++;
-        if (micExtBufferWritePos >= maxlen)
-            micExtBufferWritePos = 0;
-
-        micExtBufferCount++;
-
-        res_timer += res_incr;
-        while (res_timer >= 1.0)
-        {
-            res_timer -= 1.0;
-            res_pos++;
-        }
+        return readlength;
     }
 }
-
-void EmuInstance::micCallback(void* data, Uint8* stream, int len)
-{
-    EmuInstance* inst = (EmuInstance*)data;
-    s16* input = (s16*)stream;
-    len /= sizeof(s16);
-
-    SDL_LockMutex(inst->micLock);
-    inst->micResample(input, len);
-    SDL_UnlockMutex(inst->micLock);
-}
-
-
-
-
 
 void EmuInstance::audioUpdateSettings()
 {
@@ -500,12 +398,12 @@ void EmuInstance::audioUpdateSettings()
 
 void EmuInstance::audioEnable()
 {
-    if (audioDevice) SDL_PauseAudioDevice(audioDevice, 0);
+    if (audioDevice) SDL_ResumeAudioStreamDevice(audioDevice);
     if (micStarted) micOpen();
 }
 
 void EmuInstance::audioDisable()
 {
-    if (audioDevice) SDL_PauseAudioDevice(audioDevice, 1);
+    if (audioDevice) SDL_PauseAudioStreamDevice(audioDevice);
     if (micStarted) micClose();
 }

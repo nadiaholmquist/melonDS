@@ -17,11 +17,9 @@
 */
 
 #include <QKeyEvent>
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include "Platform.h"
-#include "SDL_gamecontroller.h"
-#include "SDL_sensor.h"
 #include "main.h"
 #include "Config.h"
 
@@ -69,15 +67,15 @@ const char* EmuInstance::hotkeyNames[HK_MAX] =
     "HK_GuitarGripBlue"
 };
 
-std::shared_ptr<SDL_mutex> EmuInstance::joyMutexGlobal = nullptr;
+std::shared_ptr<SDL_Mutex> EmuInstance::joyMutexGlobal = nullptr;
 
 
 void EmuInstance::inputInit()
 {
     if (!joyMutexGlobal)
     {
-        SDL_mutex* mutex = SDL_CreateMutex();
-        joyMutexGlobal = std::shared_ptr<SDL_mutex>(mutex, SDL_DestroyMutex);
+        SDL_Mutex* mutex = SDL_CreateMutex();
+        joyMutexGlobal = std::shared_ptr<SDL_Mutex>(mutex, SDL_DestroyMutex);
     }
     joyMutex = joyMutexGlobal;
 
@@ -140,7 +138,7 @@ void EmuInstance::inputRumbleStart(melonDS::u32 len_ms)
 
     if (controller && hasRumble && !isRumbling)
     {
-        SDL_GameControllerRumble(controller, 0xFFFF, 0xFFFF, len_ms);
+        SDL_RumbleGamepad(controller, 0xFFFF, 0xFFFF, len_ms);
         isRumbling = true;
     }
 
@@ -153,7 +151,7 @@ void EmuInstance::inputRumbleStop()
 
     if (controller && hasRumble && isRumbling)
     {
-        SDL_GameControllerRumble(controller, 0, 0, 0);
+        SDL_RumbleGamepad(controller, 0, 0, 0);
         isRumbling = false;
     }
 
@@ -168,7 +166,7 @@ float EmuInstance::inputMotionQuery(melonDS::Platform::MotionQueryType type)
     {
         if (controller && hasAccelerometer)
         {
-            if (SDL_GameControllerGetSensorData(controller, SDL_SENSOR_ACCEL, values, 3) == 0)
+            if (SDL_GetGamepadSensorData(controller, SDL_SENSOR_ACCEL, values, 3) == 0)
             {
                 // Map values from DS console orientation to SDL controller orientation.
                 SDL_UnlockMutex(joyMutex.get());
@@ -180,6 +178,8 @@ float EmuInstance::inputMotionQuery(melonDS::Platform::MotionQueryType type)
                     return -values[2];
                 case melonDS::Platform::MotionAccelerationZ:
                     return values[1];
+                default:
+                    break;
                 }
             }
         }
@@ -188,7 +188,7 @@ float EmuInstance::inputMotionQuery(melonDS::Platform::MotionQueryType type)
     {
         if (controller && hasGyroscope)
         {
-            if (SDL_GameControllerGetSensorData(controller, SDL_SENSOR_GYRO, values, 3) == 0)
+            if (SDL_GetGamepadSensorData(controller, SDL_SENSOR_GYRO, values, 3) == 0)
             {
                 // Map values from DS console orientation to SDL controller orientation.
                 SDL_UnlockMutex(joyMutex.get());
@@ -200,6 +200,8 @@ float EmuInstance::inputMotionQuery(melonDS::Platform::MotionQueryType type)
                     return -values[2];
                 case melonDS::Platform::MotionRotationZ:
                     return values[1];
+                default:
+                    break;
                 }
             }
         }
@@ -221,44 +223,49 @@ void EmuInstance::setJoystick(int id)
 
 void EmuInstance::openJoystick()
 {
-    if (controller) SDL_GameControllerClose(controller);
+    if (controller) SDL_CloseGamepad(controller);
 
-    if (joystick) SDL_JoystickClose(joystick);
+    if (joystick) SDL_CloseJoystick(joystick);
 
-    int num = SDL_NumJoysticks();
-    if (num < 1)
+    int num;
+    SDL_JoystickID* ids = SDL_GetJoysticks(&num);
+
+    controller = nullptr;
+    joystick = nullptr;
+    hasRumble = false;
+    hasAccelerometer = false;
+    hasGyroscope = false;
+
+    for (int i = 0; i < num; i++)
     {
-        controller = nullptr;
-        joystick = nullptr;
-        hasRumble = false;
-        hasAccelerometer = false;
-        hasGyroscope = false;
+        if (joystickID == ids[i])
+        {
+            joystickID = ids[i];
+            joystick = SDL_OpenJoystick(joystickID);
+            break;
+        }
+    }
+
+    SDL_free(ids);
+
+    if (joystick == nullptr)
         return;
-    }
 
-    if (joystickID >= num)
-        joystickID = 0;
-
-    joystick = SDL_JoystickOpen(joystickID);
-
-    if (SDL_IsGameController(joystickID))
-    {
-        controller = SDL_GameControllerOpen(joystickID);
-    }
+    if (SDL_IsGamepad(joystickID))
+        controller = SDL_OpenGamepad(joystickID);
 
     if (controller)
     {
-        if (SDL_GameControllerHasRumble(controller))
+        SDL_PropertiesID props = SDL_GetGamepadProperties(controller);
+
+        hasRumble = SDL_GetBooleanProperty(props, SDL_PROP_GAMEPAD_CAP_RUMBLE_BOOLEAN, false);
+        if (SDL_GamepadHasSensor(controller, SDL_SENSOR_ACCEL))
         {
-            hasRumble = true;
+            hasAccelerometer = SDL_SetGamepadSensorEnabled(controller, SDL_SENSOR_ACCEL, true);
         }
-        if (SDL_GameControllerHasSensor(controller, SDL_SENSOR_ACCEL))
+        if (SDL_GamepadHasSensor(controller, SDL_SENSOR_GYRO))
         {
-            hasAccelerometer = SDL_GameControllerSetSensorEnabled(controller, SDL_SENSOR_ACCEL, SDL_TRUE) == 0;
-        }
-        if (SDL_GameControllerHasSensor(controller, SDL_SENSOR_GYRO))
-        {
-            hasGyroscope = SDL_GameControllerSetSensorEnabled(controller, SDL_SENSOR_GYRO, SDL_TRUE) == 0;
+            hasGyroscope = SDL_SetGamepadSensorEnabled(controller, SDL_SENSOR_GYRO, true);
         }
     }
 }
@@ -267,7 +274,7 @@ void EmuInstance::closeJoystick()
 {
     if (controller)
     {
-        SDL_GameControllerClose(controller);
+        SDL_CloseGamepad(controller);
         controller = nullptr;
         hasRumble = false;
         hasAccelerometer = false;
@@ -275,7 +282,7 @@ void EmuInstance::closeJoystick()
     }
     if (joystick)
     {
-        SDL_JoystickClose(joystick);
+        SDL_CloseJoystick(joystick);
         joystick = nullptr;
     }
 }
@@ -368,7 +375,7 @@ bool EmuInstance::joystickButtonDown(int val)
         {
             int hatnum = (val >> 4) & 0xF;
             int hatdir = val & 0xF;
-            Uint8 hatval = SDL_JoystickGetHat(joystick, hatnum);
+            Uint8 hatval = SDL_GetJoystickHat(joystick, hatnum);
 
             bool pressed = false;
             if      (hatdir == 0x1) pressed = (hatval & SDL_HAT_UP);
@@ -381,7 +388,7 @@ bool EmuInstance::joystickButtonDown(int val)
         else
         {
             int btnnum = val & 0xFFFF;
-            Uint8 btnval = SDL_JoystickGetButton(joystick, btnnum);
+            Uint8 btnval = SDL_GetJoystickButton(joystick, btnnum);
 
             if (btnval) return true;
         }
@@ -391,7 +398,7 @@ bool EmuInstance::joystickButtonDown(int val)
     {
         int axisnum = (val >> 24) & 0xF;
         int axisdir = (val >> 20) & 0xF;
-        Sint16 axisval = SDL_JoystickGetAxis(joystick, axisnum);
+        Sint16 axisval = SDL_GetJoystickAxis(joystick, axisnum);
 
         switch (axisdir)
         {
@@ -415,17 +422,17 @@ bool EmuInstance::joystickButtonDown(int val)
 void EmuInstance::inputProcess()
 {
     SDL_LockMutex(joyMutex.get());
-    SDL_JoystickUpdate();
+    SDL_UpdateJoysticks();
 
     if (joystick)
     {
-        if (!SDL_JoystickGetAttached(joystick))
+        if (!SDL_JoystickConnected(joystick))
         {
-            SDL_JoystickClose(joystick);
+            SDL_CloseJoystick(joystick);
             joystick = nullptr;
         }
     }
-    if (!joystick && (SDL_NumJoysticks() > 0))
+    if (!joystick && SDL_HasJoystick())
     {
         openJoystick();
     }

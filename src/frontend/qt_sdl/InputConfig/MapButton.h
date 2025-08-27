@@ -21,7 +21,7 @@
 
 #include <QPushButton>
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include "Platform.h"
 #include "EmuInstance.h"
@@ -224,16 +224,16 @@ protected:
     {
         SDL_Joystick* joy = parentDialog->getJoystick();
         if (!joy) { click(); return; }
-        if (!SDL_JoystickGetAttached(joy)) { click(); return; }
+        if (!SDL_JoystickConnected(joy)) { click(); return; }
 
         int oldmap;
         if (*mapping == -1) oldmap = 0xFFFF;
         else                oldmap = *mapping;
 
-        int nbuttons = SDL_JoystickNumButtons(joy);
+        int nbuttons = SDL_GetNumJoystickButtons(joy);
         for (int i = 0; i < nbuttons; i++)
         {
-            if (SDL_JoystickGetButton(joy, i))
+            if (SDL_GetJoystickButton(joy, i))
             {
                 *mapping = (oldmap & 0xFFFF0000) | i;
                 click();
@@ -241,11 +241,11 @@ protected:
             }
         }
 
-        int nhats = SDL_JoystickNumHats(joy);
+        int nhats = SDL_GetNumJoystickHats(joy);
         if (nhats > 16) nhats = 16;
         for (int i = 0; i < nhats; i++)
         {
-            Uint8 blackhat = SDL_JoystickGetHat(joy, i);
+            Uint8 blackhat = SDL_GetJoystickHat(joy, i);
             if (blackhat)
             {
                 if      (blackhat & 0x1) blackhat = 0x1;
@@ -259,11 +259,11 @@ protected:
             }
         }
 
-        int naxes = SDL_JoystickNumAxes(joy);
+        int naxes = SDL_GetNumJoystickAxes(joy);
         if (naxes > 16) naxes = 16;
         for (int i = 0; i < naxes; i++)
         {
-            Sint16 axisval = SDL_JoystickGetAxis(joy, i);
+            Sint16 axisval = SDL_GetJoystickAxis(joy, i);
             int diff = abs(axisval - axesRest[i]);
 
             if (diff >= 16384)
@@ -310,13 +310,13 @@ private slots:
             auto mutex = parentDialog->getJoyMutex();
             SDL_LockMutex(mutex.get());
             SDL_Joystick* joy = parentDialog->getJoystick();
-            if (joy && SDL_JoystickGetAttached(joy))
+            if (joy && SDL_JoystickConnected(joy))
             {
-                int naxes = SDL_JoystickNumAxes(joy);
+                int naxes = SDL_GetNumJoystickAxes(joy);
                 if (naxes > 16) naxes = 16;
                 for (int a = 0; a < naxes; a++)
                 {
-                    axesRest[a] = SDL_JoystickGetAxis(joy, a);
+                    axesRest[a] = SDL_GetJoystickAxis(joy, a);
                 }
             }
             SDL_UnlockMutex(mutex.get());

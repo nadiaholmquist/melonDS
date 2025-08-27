@@ -26,7 +26,7 @@
 #include <string>
 #include <algorithm>
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include "main.h"
 

@@ -16,7 +16,7 @@
     with melonDS. If not, see http://www.gnu.org/licenses/.
 */
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include <QFileDialog>
 
 #include "types.h"
@@ -84,7 +84,8 @@ AudioSettingsDialog::AudioSettingsDialog(QWidget* parent) : QDialog(parent), ui(
     bool isext = (mictype == micInputType_External);
     ui->cbMic->setEnabled(isext);
 
-    const int count = SDL_GetNumAudioDevices(true);
+    // TODO
+    /*const int count = SDL_GetNumAudioDevices(true);
     for (int i = 0; i < count; i++)
     {
         ui->cbMic->addItem(SDL_GetAudioDeviceName(i, true));
@@ -97,6 +98,7 @@ AudioSettingsDialog::AudioSettingsDialog(QWidget* parent) : QDialog(parent), ui(
     }
 
     ui->cbMic->setCurrentText(micdev);
+    */
 
     grpMicMode = new QButtonGroup(this);
     grpMicMode->addButton(ui->rbMicNone,     micInputType_Silence);

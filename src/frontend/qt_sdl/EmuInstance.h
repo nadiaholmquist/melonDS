@@ -19,7 +19,7 @@
 #ifndef EMUINSTANCE_H
 #define EMUINSTANCE_H
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include "Platform.h"
 #include "main.h"
@@ -155,7 +155,7 @@ public:
     void setJoystick(int id);
     int getJoystickID() { return joystickID; }
     SDL_Joystick* getJoystick() { return joystick; }
-    std::shared_ptr<SDL_mutex> getJoyMutex() { return joyMutex; }
+    std::shared_ptr<SDL_Mutex> getJoyMutex() { return joyMutex; }
 
     void touchScreen(int x, int y);
     void releaseScreen();
@@ -233,6 +233,7 @@ private:
 
     int audioGetNumSamplesOut(int outlen);
     static void audioCallback(void* data, Uint8* stream, int len);
+    static void audioCallback(void* data, SDL_AudioStream* stream, int additional, int total);
 
     int micGetNumSamplesIn(int inlen);
     void micResample(melonDS::s16* inbuf, int inlen);
@@ -309,19 +310,19 @@ private:
     std::unique_ptr<melonDS::ARCodeFile> cheatFile;
     bool cheatsOn;
 
-    SDL_AudioDeviceID audioDevice;
+    SDL_AudioStream* audioDevice;
     int audioFreq;
     int audioBufSize;
     float audioSampleFrac;
     bool audioMuted;
-    SDL_cond* audioSyncCond;
-    SDL_mutex* audioSyncLock;
+    SDL_Condition* audioSyncCond;
+    SDL_Mutex* audioSyncLock;
 
     int mpAudioMode;
 
     bool micStarted;
 
-    SDL_AudioDeviceID micDevice;
+    SDL_AudioStream* micDevice;
     int micFreq;
     int micBufSize;
     float micSampleFrac;
@@ -337,7 +338,7 @@ private:
     melonDS::u32 micBufferLength;
     melonDS::u32 micBufferReadPos;
 
-    SDL_mutex* micLock;
+    SDL_Mutex* micLock;
 
     //int audioInterp;
     int audioVolume;
@@ -353,14 +354,14 @@ private:
 
     int joystickID;
     SDL_Joystick* joystick;
-    SDL_GameController* controller;
+    SDL_Gamepad* controller;
     bool hasAccelerometer = false;
     bool hasGyroscope = false;
     bool hasRumble = false;
     bool isRumbling = false;
 
-    static std::shared_ptr<SDL_mutex> joyMutexGlobal;
-    std::shared_ptr<SDL_mutex> joyMutex;
+    static std::shared_ptr<SDL_Mutex> joyMutexGlobal;
+    std::shared_ptr<SDL_Mutex> joyMutex;
 
     melonDS::u32 keyInputMask, joyInputMask;
     melonDS::u32 keyHotkeyMask, joyHotkeyMask;

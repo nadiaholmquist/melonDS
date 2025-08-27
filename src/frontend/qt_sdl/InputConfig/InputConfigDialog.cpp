@@ -21,7 +21,7 @@
 #include <QKeyEvent>
 #include <QDebug>
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include "types.h"
 #include "Platform.h"
@@ -78,12 +78,14 @@ InputConfigDialog::InputConfigDialog(QWidget* parent) : QDialog(parent), ui(new 
 
     joystickID = instcfg.GetInt("JoystickID");
 
-    int njoy = SDL_NumJoysticks();
+    int njoy;
+    SDL_JoystickID* ids = SDL_GetJoysticks(&njoy);
+
     if (njoy > 0)
     {
-        for (int i = 0; i < njoy; i++)
+        for (int j = 0; j < njoy; j++)
         {
-            const char* name = SDL_JoystickNameForIndex(i);
+            const char* name = SDL_GetJoystickNameForID(ids[j]);
             ui->cbxJoystick->addItem(QString(name));
         }
         ui->cbxJoystick->setCurrentIndex(joystickID);
@@ -93,6 +95,8 @@ InputConfigDialog::InputConfigDialog(QWidget* parent) : QDialog(parent), ui(new 
         ui->cbxJoystick->addItem("(no joysticks available)");
         ui->cbxJoystick->setEnabled(false);
     }
+
+    SDL_free(ids);
 
     setupKeypadPage();
 
@@ -253,7 +257,7 @@ SDL_Joystick* InputConfigDialog::getJoystick()
     return emuInstance->getJoystick();
 }
 
-std::shared_ptr<SDL_mutex> InputConfigDialog::getJoyMutex()
+std::shared_ptr<SDL_Mutex> InputConfigDialog::getJoyMutex()
 {
     return emuInstance->getJoyMutex();
 }

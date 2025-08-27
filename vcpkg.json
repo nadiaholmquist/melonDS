@@ -11,10 +11,14 @@
 	},
 	"default-features": ["qt6"],
 	"dependencies": [
-		"sdl2",
 		{
-			"name": "sdl2",
+			"name": "sdl3",
+			"default-features": false
+		},
+		{
+			"name": "sdl3",
 			"platform": "linux",
+			"default-features": false,
 			"features": [ "alsa" ]
 		},
 		"libarchive",

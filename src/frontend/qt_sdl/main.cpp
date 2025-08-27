@@ -44,7 +44,7 @@
 #include <signal.h>
 #endif
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 
 #include "OpenGLSupport.h"
 #include "duckstation/gl/context.h"
@@ -298,19 +298,19 @@ int main(int argc, char** argv)
 
     SDL_SetHint(SDL_HINT_APP_NAME, "melonDS");
 
-    if (SDL_Init(SDL_INIT_HAPTIC) < 0)
+    if (!SDL_Init(SDL_INIT_HAPTIC))
     {
         printf("SDL couldn't init rumble\n");
     }
-    if (SDL_Init(SDL_INIT_JOYSTICK) < 0)
+    if (!SDL_Init(SDL_INIT_JOYSTICK))
     {
         printf("SDL couldn't init joystick\n");
     }
-    if (SDL_Init(SDL_INIT_SENSOR) < 0)
+    if (!SDL_Init(SDL_INIT_SENSOR))
     {
         printf("SDL couldn't init motion sensors\n");
     }
-    if (SDL_Init(SDL_INIT_AUDIO) < 0)
+    if (!SDL_Init(SDL_INIT_AUDIO))
     {
         const char* err = SDL_GetError();
         QString errorStr = "Failed to initialize SDL. This could indicate an issue with your audio driver.\n\nThe error was: ";
@@ -320,7 +320,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    SDL_JoystickEventState(SDL_ENABLE);
+    SDL_SetJoystickEventsEnabled(true);
 
     SDL_InitSubSystem(SDL_INIT_VIDEO);
     SDL_EnableScreenSaver(); SDL_DisableScreenSaver();

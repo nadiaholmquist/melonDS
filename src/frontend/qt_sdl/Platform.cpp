@@ -30,7 +30,6 @@
 #include <QSemaphore>
 #include <QMutex>
 #include <QTemporaryFile>
-#include <SDL_loadso.h>
 
 #include "Platform.h"
 #include "Config.h"
@@ -604,12 +603,12 @@ DynamicLibrary* DynamicLibrary_Load(const char* lib)
 
 void DynamicLibrary_Unload(DynamicLibrary* lib)
 {
-    SDL_UnloadObject(lib);
+    SDL_UnloadObject((SDL_SharedObject*) lib);
 }
 
 void* DynamicLibrary_LoadFunction(DynamicLibrary* lib, const char* name)
 {
-    return SDL_LoadFunction(lib, name);
+    return (void*) SDL_LoadFunction((SDL_SharedObject*) lib, name);
 }
 
 }
