@@ -42,10 +42,12 @@ jobs:
       uses: lukka/run-vcpkg@v11
       with:
         vcpkgJsonGlob: vcpkg.json
-    - name: Configure
-      run: cmake --preset=release-windows -DMELONDS_EMBED_BUILD_INFO=ON
     - name: Build
-      run: cmake --build --preset=release-windows
+      uses: lukka/run-cmake@v10
+      with:
+        configurePreset: release-windows
+        buildPreset: release-mac-windows
+        configurePresetAdditionalArgs: "['-DMELONDS_EMBED_BUILD_INFO=ON']"
     - uses: actions/upload-artifact@v4
       with:
         name: melonDS-windows-${{ matrix.arch.name }}
