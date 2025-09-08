@@ -21,6 +21,31 @@
       }
     },
     {
+      "name": "release-windows",
+      "inherits": "release-vcpkg",
+      "displayName": "Windows release",
+      "binaryDir": "${sourceDir}/build/release-windows",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": {
+          "type": "STRING",
+          "value": "clang-cl"
+        },
+        "CMAKE_CXX_COMPILER": {
+          "type": "STRING",
+          "value": "clang-cl"
+        },
+        "BUILD_STATIC": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "ENABLE_DEBUG_DEPS": {
+          "type": "BOOL",
+          "value": "OFF"
+        }
+      }
+    },
+    {
       "name": "release-mingw-x86_64",
       "inherits": "release-vcpkg",
       "displayName": "Windows MinGW release (x86_64)",
@@ -56,6 +81,10 @@
     {
       "name": "release-vcpkg",
       "configurePreset": "release-vcpkg"
+    },
+    {
+      "name": "release-windows",
+      "configurePreset": "release-windows"
     },
     {
       "name": "release-mingw-x86_64",
