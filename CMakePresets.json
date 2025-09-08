@@ -27,14 +27,6 @@
       "binaryDir": "${sourceDir}/build/release-windows",
       "generator": "Ninja",
       "cacheVariables": {
-        "CMAKE_C_COMPILER": {
-          "type": "STRING",
-          "value": "clang-cl"
-        },
-        "CMAKE_CXX_COMPILER": {
-          "type": "STRING",
-          "value": "clang-cl"
-        },
         "BUILD_STATIC": {
           "type": "BOOL",
           "value": "ON"
@@ -43,6 +35,10 @@
           "type": "BOOL",
           "value": "OFF"
         }
+      },
+      "environment": {
+        "CC": "clang-cl",
+        "CXX": "clang-cl"
       }
     },
     {
