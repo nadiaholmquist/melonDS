@@ -17,7 +17,16 @@ env:
 
 jobs:
   build:
-    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - name: x86_64
+            os: windows-2025
+          - name: arm64
+            os: windows-11-arm
+    
+    runs-on: ${{ matrix.arch.os }}
     env:
       VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/vcpkg_cache,readwrite
     steps:
@@ -27,8 +36,8 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ${{ github.workspace }}/vcpkg_cache
-        key: vcpkg-x86_64-windows-${{ hashFiles('vcpkg.json') }}
-        restore-keys: vcpkg-x86_64-windows-
+        key: vcpkg-${{ matrix.arch.name }}-windows-${{ hashFiles('vcpkg.json') }}
+        restore-keys: vcpkg-${{ matrix.arch.name }}-windows-
     - name: Set up vcpkg
       uses: lukka/run-vcpkg@v11
       with:
@@ -39,10 +48,10 @@ jobs:
       run: cmake --build --preset=release-windows
     - uses: actions/upload-artifact@v4
       with:
-        name: melonDS-windows-x86_64
+        name: melonDS-windows-${{ matrix.arch.name }}
         path: .\build\release-windows\melonDS.exe
     - name: Save vcpkg cache
       uses: actions/cache/save@v4
       with:
         path: ${{ github.workspace }}/vcpkg_cache
-        key: vcpkg-x86_64-windows-${{ hashFiles('vcpkg.json') }}
+        key: vcpkg-${{ matrix.arch.name }}-windows-${{ hashFiles('vcpkg.json') }}
