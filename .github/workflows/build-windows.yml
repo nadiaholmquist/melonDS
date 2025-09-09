@@ -46,7 +46,7 @@ jobs:
       uses: lukka/run-cmake@v10
       with:
         configurePreset: release-windows
-        buildPreset: release-mac-windows
+        buildPreset: release-windows
         configurePresetAdditionalArgs: "['-DMELONDS_EMBED_BUILD_INFO=ON']"
     - uses: actions/upload-artifact@v4
       with:
