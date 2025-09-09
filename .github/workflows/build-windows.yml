@@ -54,6 +54,7 @@ jobs:
         name: melonDS-windows-${{ matrix.arch.name }}
         path: .\build\release-windows\melonDS.exe
     - name: Save vcpkg cache
+      if: always()
       uses: actions/cache/save@v4
       with:
         path: ${{ github.workspace }}/vcpkg_cache
