@@ -26,6 +26,7 @@ jobs:
           - name: arm64
             os: windows-11-arm
     
+    name: ${{ matrix.arch.name }}
     runs-on: ${{ matrix.arch.os }}
     env:
       VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/vcpkg_cache,readwrite

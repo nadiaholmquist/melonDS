@@ -27,6 +27,10 @@
       "binaryDir": "${sourceDir}/build/release-windows",
       "generator": "Ninja",
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": {
+          "type": "STRING",
+          "value": "Release"
+        },
         "BUILD_STATIC": {
           "type": "BOOL",
           "value": "ON"
