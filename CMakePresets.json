@@ -41,8 +41,8 @@
         }
       },
       "environment": {
-        "CC": "clang-cl",
-        "CXX": "clang-cl"
+        "CC": "clang",
+        "CXX": "clang++"
       }
     },
     {
