@@ -153,7 +153,6 @@ public:
     float inputMotionQuery(melonDS::Platform::MotionQueryType type);
 
     void setJoystick(int id);
-    int getJoystickID() { return joystickID; }
     SDL_Joystick* getJoystick() { return joystick; }
     std::shared_ptr<SDL_Mutex> getJoyMutex() { return joyMutex; }
 
@@ -243,7 +242,7 @@ private:
     void onKeyRelease(QKeyEvent* event);
     void keyReleaseAll();
 
-    void openJoystick();
+    void openJoystick(int id = -1);
     void closeJoystick();
     bool joystickButtonDown(int val);
 
@@ -352,7 +351,6 @@ private:
     int hkKeyMapping[HK_MAX];
     int hkJoyMapping[HK_MAX];
 
-    int joystickID;
     SDL_Joystick* joystick;
     SDL_Gamepad* controller;
     bool hasAccelerometer = false;

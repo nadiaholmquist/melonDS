@@ -295,20 +295,27 @@ int main(int argc, char** argv)
 
     // http://stackoverflow.com/questions/14543333/joystick-wont-work-using-sdl
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+#ifdef __APPLE__
+    // Causes duplicate controllers to show up on macOS
+    // macOS has native drivers for these anyway, so they work fine without
+    SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_NINTENDO_CLASSIC, "0");
+#endif
 
-    SDL_SetHint(SDL_HINT_APP_NAME, "melonDS");
+    SDL_SetAppMetadata("melonDS", MELONDS_VERSION, "net.kuribo64.melonDS");
+    SDL_SetAppMetadataProperty(SDL_PROP_APP_METADATA_URL_STRING, MELONDS_URL);
+    SDL_SetAppMetadataProperty(SDL_PROP_APP_METADATA_TYPE_STRING, "game");
 
     if (!SDL_Init(SDL_INIT_HAPTIC))
     {
-        printf("SDL couldn't init rumble\n");
+        printf("SDL couldn't init rumble: %s\n", SDL_GetError());
     }
     if (!SDL_Init(SDL_INIT_JOYSTICK))
     {
-        printf("SDL couldn't init joystick\n");
+        printf("SDL couldn't init joystick: %s\n", SDL_GetError());
     }
     if (!SDL_Init(SDL_INIT_SENSOR))
     {
-        printf("SDL couldn't init motion sensors\n");
+        printf("SDL couldn't init motion sensors: %s\n", SDL_GetError());
     }
     if (!SDL_Init(SDL_INIT_AUDIO))
     {

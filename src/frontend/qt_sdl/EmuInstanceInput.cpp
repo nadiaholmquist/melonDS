@@ -128,7 +128,7 @@ void EmuInstance::inputLoadConfig()
         hkJoyMapping[i] = joycfg.GetInt(hotkeyNames[i]);
     }
 
-    setJoystick(localCfg.GetInt("JoystickID"));
+    openJoystick();
     SDL_UnlockMutex(joyMutex.get());
 }
 
@@ -216,19 +216,19 @@ float EmuInstance::inputMotionQuery(melonDS::Platform::MotionQueryType type)
 void EmuInstance::setJoystick(int id)
 {
     SDL_LockMutex(joyMutex.get());
-    joystickID = id;
-    openJoystick();
+    SDL_GUID guid = SDL_GetJoystickGUIDForID(id);
+    char guidStr[33];
+    SDL_GUIDToString(guid, guidStr, 33);
+    localCfg.SetString("JoystickGUID", guidStr);
+
+    openJoystick(id);
     SDL_UnlockMutex(joyMutex.get());
 }
 
-void EmuInstance::openJoystick()
+void EmuInstance::openJoystick(int id)
 {
     if (controller) SDL_CloseGamepad(controller);
-
     if (joystick) SDL_CloseJoystick(joystick);
-
-    int num;
-    SDL_JoystickID* ids = SDL_GetJoysticks(&num);
 
     controller = nullptr;
     joystick = nullptr;
@@ -236,23 +236,37 @@ void EmuInstance::openJoystick()
     hasAccelerometer = false;
     hasGyroscope = false;
 
-    for (int i = 0; i < num; i++)
+    if (id != -1)
     {
-        if (joystickID == ids[i])
-        {
-            joystickID = ids[i];
-            joystick = SDL_OpenJoystick(joystickID);
-            break;
-        }
+        joystick = SDL_OpenJoystick(id);
     }
+    else
+    {
+        std::string guidStr = localCfg.GetString("JoystickGUID");
+        SDL_GUID guid = SDL_StringToGUID(guidStr.c_str());
 
-    SDL_free(ids);
+        int num;
+        SDL_JoystickID* ids = SDL_GetJoysticks(&num);
+
+        for (int i = 0; i < num; i++)
+        {
+            SDL_GUID deviceGUID = SDL_GetJoystickGUIDForID(ids[i]);
+            if (memcmp(guid.data, deviceGUID.data, 16) == 0)
+            {
+                id = ids[i];
+                joystick = SDL_OpenJoystick(id);
+                break;
+            }
+        }
+
+        SDL_free(ids);
+    }
 
     if (joystick == nullptr)
         return;
 
-    if (SDL_IsGamepad(joystickID))
-        controller = SDL_OpenGamepad(joystickID);
+    if (SDL_IsGamepad(id))
+        controller = SDL_OpenGamepad(id);
 
     if (controller)
     {
@@ -267,6 +281,8 @@ void EmuInstance::openJoystick()
         {
             hasGyroscope = SDL_SetGamepadSensorEnabled(controller, SDL_SENSOR_GYRO, true);
         }
+
+        SDL_SetGamepadPlayerIndex(controller, instanceID);
     }
 }
 

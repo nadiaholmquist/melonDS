@@ -34,7 +34,7 @@
         buildInputs = (with pkgs; [
           qt6.qtbase
           qt6.qtmultimedia
-          SDL2
+          sdl3
           zstd
           libarchive
           libGL

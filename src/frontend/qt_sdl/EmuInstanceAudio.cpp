@@ -40,8 +40,13 @@ void EmuInstance::audioInit()
     audioSyncCond = SDL_CreateCondition();
     audioSyncLock = SDL_CreateMutex();
 
-    audioFreq = 47743; // TODO: make both of these configurable?
+    audioFreq = 48000;
     audioBufSize = 1024;
+
+    SDL_AudioSpec deviceSpec;
+    int res = SDL_GetAudioDeviceFormat(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &deviceSpec, &audioBufSize);
+    if (res)
+        audioFreq = deviceSpec.freq;
 
     SDL_AudioSpec audioSpec = {};
     audioSpec.freq = audioFreq;
@@ -78,16 +83,11 @@ void EmuInstance::audioCallback(void* data, SDL_AudioStream* stream, int additio
     EmuInstance* inst = (EmuInstance*) data;
     if (inst == nullptr || inst->nds == nullptr || additional == 0) return;
 
-    double rate = inst->curFPS / 59.826098288f;
-    //SDL_SetAudioStreamFrequencyRatio(stream, std::clamp(rate, 0.995, 1.005));
-    SDL_SetAudioStreamFrequencyRatio(stream, 1.00000975868923192929);
+    double skew = std::clamp(inst->targetFPS / INTERNAL_FRAME_RATE, 0.995, 1.005);
+    inst->nds->SPU.SetOutputSkew(skew);
 
     int n = inst->nds->SPU.GetOutputSize() * (2 * sizeof(s16));
     int toRead = std::min(additional, n);
-
-    printf("queued %d, avail %d\n", SDL_GetAudioStreamQueued(stream), inst->nds->SPU.GetOutputSize());
-    printf("cur %f, target %f, samples %d, add %d, total %d\n", inst->curFPS, inst->targetFPS, n, additional, total);
-
     s16 samples[toRead];
     inst->nds->SPU.ReadOutput(samples, toRead / (2 * sizeof(s16)));
     SDL_PutAudioStreamData(stream, samples, toRead);
@@ -164,52 +164,7 @@ int EmuInstance::audioGetNumSamplesOut(int outlen)
     return len_in;
 }
 
-
-/*
-void EmuInstance::audioCallback(void* data, SDL_AudioStream* stream, int additional, int total)
-{
-    EmuInstance* inst = (EmuInstance*)data;
-    len /= (sizeof(s16) * 2);
-
-    double skew = std::clamp(inst->targetFPS / INTERNAL_FRAME_RATE, 0.995, 1.005);
-    inst->nds->SPU.SetOutputSkew(skew);
-
-    int len_in = inst->audioGetNumSamplesOut(len);
-    if (len_in > inst->audioBufSize) len_in = inst->audioBufSize;
-    s16 buf_in[inst->audioBufSize*2];
-
-    SDL_LockMutex(inst->audioSyncLock);
-    int num_in = inst->nds->SPU.ReadOutput((s16*) stream, len_in);
-    SDL_CondSignal(inst->audioSyncCond);
-    SDL_UnlockMutex(inst->audioSyncLock);
-
-    if ((num_in < 1) || inst->audioMuted)
-    {
-        memset(stream, 0, len*sizeof(s16)*2);
-        return;
-    }
-
-    if (inst->audioVolume < 256)
-    {
-        s16* samples = (s16*) stream;
-        for (int i = 0; i < num_in * 2; i++)
-            samples[i] = ((s32) samples[i] * inst->audioVolume) >> 8;
-    }
-
-    int margin = 6;
-    if (num_in < len_in-margin)
-    {
-        int last = num_in-1;
-
-        for (int i = num_in; i < len_in-margin; i++)
-            ((u32*)stream)[i] = ((u32*)stream)[last];
-    }
-}
-*/
-
-
 // --- MIC INPUT --------------------------------------------------------------
-
 
 void EmuInstance::micOpen()
 {
@@ -285,7 +240,7 @@ void EmuInstance::micLoadWav(const std::string& name)
 
     s16* out;
     int outLen;
-    SDL_AudioSpec inSpec = { SDL_AUDIO_S16LE, 1, 47743 };
+    SDL_AudioSpec inSpec = { SDL_AUDIO_S16LE, 1, audioFreq };
     bool cvtres = SDL_ConvertAudioSamples(&format, buf, len, &inSpec, (u8**) &out, &outLen);
 
     if (cvtres)

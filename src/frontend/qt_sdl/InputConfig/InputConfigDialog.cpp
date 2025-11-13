@@ -29,6 +29,7 @@
 #include "InputConfigDialog.h"
 #include "ui_InputConfigDialog.h"
 #include "MapButton.h"
+#include "JoystickListModel.h"
 
 
 using namespace melonDS;
@@ -76,27 +77,14 @@ InputConfigDialog::InputConfigDialog(QWidget* parent) : QDialog(parent), ui(new 
     populatePage(ui->tabAddons, hk_addons_labels, addonsKeyMap, addonsJoyMap);
     populatePage(ui->tabHotkeysGeneral, hk_general_labels, hkGeneralKeyMap, hkGeneralJoyMap);
 
-    joystickID = instcfg.GetInt("JoystickID");
+    auto joyModel = new JoystickListModel(ui->cbxJoystick);
+    ui->cbxJoystick->setModel(joyModel);
 
-    int njoy;
-    SDL_JoystickID* ids = SDL_GetJoysticks(&njoy);
-
-    if (njoy > 0)
-    {
-        for (int j = 0; j < njoy; j++)
-        {
-            const char* name = SDL_GetJoystickNameForID(ids[j]);
-            ui->cbxJoystick->addItem(QString(name));
-        }
-        ui->cbxJoystick->setCurrentIndex(joystickID);
-    }
-    else
-    {
-        ui->cbxJoystick->addItem("(no joysticks available)");
-        ui->cbxJoystick->setEnabled(false);
-    }
-
-    SDL_free(ids);
+    SDL_Joystick* joy = emuInstance->getJoystick();
+    int joyId = SDL_GetJoystickID(joy);
+    int index = joyModel->getIndexByID(joyId);
+    if (index == -1) index = 0;
+    ui->cbxJoystick->setCurrentIndex(index);
 
     setupKeypadPage();
 
@@ -217,7 +205,12 @@ void InputConfigDialog::on_InputConfigDialog_accepted()
         i++;
     }
 
-    instcfg.SetInt("JoystickID", joystickID);
+    auto joyModel = static_cast<JoystickListModel>(ui->cbxJoystick->model());
+    SDL_GUID guid = joyModel.getGUID(ui->cbxJoystick->currentIndex());
+    char guidStr[33] = { 0 };
+    SDL_GUIDToString(guid, guidStr, 33);
+
+    instcfg.SetString("JoystickGUID", guidStr);
     Config::Save();
 
     emuInstance->inputLoadConfig();
@@ -245,11 +238,9 @@ void InputConfigDialog::on_btnJoyMapSwitch_clicked()
 
 void InputConfigDialog::on_cbxJoystick_currentIndexChanged(int id)
 {
-    // prevent a spurious change
-    if (ui->cbxJoystick->count() < 2) return;
-
-    joystickID = id;
-    emuInstance->setJoystick(id);
+    auto model = static_cast<JoystickListModel*>(ui->cbxJoystick->model());
+    SDL_JoystickID j = model->getInstanceID(id);
+    emuInstance->setJoystick(j);
 }
 
 SDL_Joystick* InputConfigDialog::getJoystick()
