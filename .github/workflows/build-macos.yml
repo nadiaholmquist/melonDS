@@ -76,20 +76,20 @@ jobs:
     continue-on-error: true
     steps:
       - name: Download x86_64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
-          name: macOS-x86_64
+          name: macOS-x86_64.zip
           path: x86_64
       - name: Download arm64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
-          name: macOS-arm64
+          name: macOS-arm64.zip
           path: arm64
       - name: Combine app bundles
         shell: bash
         run: |
-          unzip x86_64/*.zip -d x86_64
-          unzip arm64/*.zip -d arm64
+          #unzip x86_64/*.zip -d x86_64
+          #unzip arm64/*.zip -d arm64
           lipo {x86_64,arm64}/melonDS.app/Contents/MacOS/melonDS -create -output melonDS
           cp -a arm64/melonDS.app melonDS.app
           cp melonDS melonDS.app/Contents/MacOS/melonDS
