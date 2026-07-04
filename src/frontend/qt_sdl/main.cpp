@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2024 melonDS team
+    Copyright 2016-2026 melonDS team
 
     This file is part of melonDS.
 
@@ -41,10 +41,7 @@
 #include <QSocketNotifier>
 #include <unistd.h>
 #include <sys/socket.h>
-#include <signal.h>
-#ifndef APPLE
-#include <qpa/qplatformnativeinterface.h>
-#endif
+#include <csignal>
 #endif
 
 #include <SDL2/SDL.h>
@@ -269,6 +266,14 @@ bool MelonApplication::event(QEvent *event)
     return QApplication::event(event);
 }
 
+#ifndef _WIN32
+static void signalHandler(int signal)
+{
+    std::signal(signal, SIG_DFL);
+    qApp->quit();
+}
+#endif
+
 int main(int argc, char** argv)
 {
     sysTimer.start();
@@ -279,9 +284,39 @@ int main(int argc, char** argv)
 
     qputenv("QT_SCALE_FACTOR", "1");
 
-#if QT_VERSION_MAJOR == 6 && defined(__WIN32__)
+#if defined(_WIN32)
+#if QT_VERSION_MAJOR == 6
     // Allow using the system dark theme palette on Windows
     qputenv("QT_QPA_PLATFORM", "windows:darkmode=2");
+#endif
+
+    // argc and argv are passed as UTF8 by SDL's WinMain function
+    // QT checks for the original value in local encoding though
+    // to see whether it is unmodified to activate its hack that
+    // retrieves the unicode value via CommandLineToArgvW.
+    argc = __argc;
+    argv = __argv;
+
+    // Check whether we are already attached to an output stream.
+    HANDLE outputHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (!outputHandle || (outputHandle == INVALID_HANDLE_VALUE))
+    {
+        // If started from terminal, attach and output logs to it.
+        if (AttachConsole(ATTACH_PARENT_PROCESS))
+        {
+            freopen("CONOUT$", "a", stdout);
+            freopen("CONOUT$", "a", stderr);
+        }
+        else
+        {
+            // Otherwise, discard log output.
+            freopen("NUL:", "w", stdout);
+            freopen("NUL:", "w", stderr);
+        }
+    }
+#else
+    std::signal(SIGINT, signalHandler);
+    std::signal(SIGTERM, signalHandler);
 #endif
 
     printf("melonDS " MELONDS_VERSION "\n");
@@ -299,6 +334,8 @@ int main(int argc, char** argv)
     // http://stackoverflow.com/questions/14543333/joystick-wont-work-using-sdl
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
 
+    SDL_SetHint(SDL_HINT_APP_NAME, "melonDS");
+
     if (SDL_Init(SDL_INIT_HAPTIC) < 0)
     {
         printf("SDL couldn't init rumble\n");
@@ -306,6 +343,10 @@ int main(int argc, char** argv)
     if (SDL_Init(SDL_INIT_JOYSTICK) < 0)
     {
         printf("SDL couldn't init joystick\n");
+    }
+    if (SDL_Init(SDL_INIT_SENSOR) < 0)
+    {
+        printf("SDL couldn't init motion sensors\n");
     }
     if (SDL_Init(SDL_INIT_AUDIO) < 0)
     {
@@ -342,6 +383,10 @@ int main(int argc, char** argv)
             QApplication::setStyle(uitheme);
         }
     }
+
+    // fix for Wayland OpenGL glitches
+    QGuiApplication::setAttribute(Qt::AA_NativeWindows, false);
+    QGuiApplication::setAttribute(Qt::AA_DontCreateNativeWidgetSiblings, true);
 
     // default MP interface type is local MP
     // this will be changed if a LAN or netplay session is initiated
@@ -395,24 +440,3 @@ int main(int argc, char** argv)
     SDL_Quit();
     return ret;
 }
-
-#ifdef __WIN32__
-
-#include <windows.h>
-
-int CALLBACK WinMain(HINSTANCE hinst, HINSTANCE hprev, LPSTR cmdline, int cmdshow)
-{
-    if (AttachConsole(ATTACH_PARENT_PROCESS) && GetStdHandle(STD_OUTPUT_HANDLE))
-    {
-        freopen("CONOUT$", "w", stdout);
-        freopen("CONOUT$", "w", stderr);
-    }
-
-    int ret = main(__argc, __argv);
-
-    printf("\n\n>");
-
-    return ret;
-}
-
-#endif

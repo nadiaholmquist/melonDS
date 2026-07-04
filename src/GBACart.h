@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2024 melonDS team
+    Copyright 2016-2026 melonDS team
 
     This file is part of melonDS.
 
@@ -33,6 +33,10 @@ enum CartType
     GameSolarSensor = 0x102,
     RAMExpansion = 0x201,
     RumblePak = 0x202,
+    MotionPakHomebrew = 0x203,
+    MotionPakRetail = 0x204,
+    GuitarGrip = 0x205,
+    Analog = 0x206,
 };
 
 // See https://problemkaputt.de/gbatek.htm#gbacartridgeheader for details
@@ -68,6 +72,7 @@ public:
     virtual void DoSavestate(Savestate* file);
 
     virtual int SetInput(int num, bool pressed);
+    virtual int SetInput(int num, float value);
 
     virtual u16 ROMRead(u32 addr) const;
     virtual void ROMWrite(u32 addr, u16 val);
@@ -232,11 +237,90 @@ private:
     u16 RumbleState = 0;
 };
 
+// CartGuitarGrip -- DS Guitar Grip (used in various NDS games)
+class CartGuitarGrip : public CartCommon
+{
+public:
+    CartGuitarGrip(void* userdata);
+    ~CartGuitarGrip() override;
+
+    u16 ROMRead(u32 addr) const override;
+    u8 SRAMRead(u32 addr) override;
+
+private:
+    void* UserData;
+};
+
+// CartMotionPakHomebrew -- DS Motion Pak (Homebrew)
+class CartMotionPakHomebrew : public CartCommon
+{
+public:
+    CartMotionPakHomebrew(void* userdata);
+    ~CartMotionPakHomebrew() override;
+
+    void Reset() override;
+
+    void DoSavestate(Savestate* file) override;
+
+    u16 ROMRead(u32 addr) const override;
+    u8 SRAMRead(u32 addr) override;
+
+private:
+    void* UserData;
+    u16 ShiftVal = 0;
+};
+
+// CartMotionPakRetail -- DS Motion Pack (Retail)
+class CartMotionPakRetail : public CartCommon
+{
+public:
+    CartMotionPakRetail(void* userdata);
+    ~CartMotionPakRetail() override;
+
+    void Reset() override;
+
+    void DoSavestate(Savestate* file) override;
+
+    u16 ROMRead(u32 addr) const override;
+    u8 SRAMRead(u32 addr) override;
+
+private:
+    void* UserData;
+    u8 Value;
+    u8 Step = 16;
+};
+
 // possible inputs for GBA carts that might accept user input
 enum
 {
     Input_SolarSensorDown = 0,
     Input_SolarSensorUp,
+    Input_GuitarGripGreen,
+    Input_GuitarGripRed,
+    Input_GuitarGripYellow,
+    Input_GuitarGripBlue,
+    Input_AnalogX,
+    Input_AnalogY,
+};
+
+// CartAnalog - Fake Slot-2 analog stick card used for ROM hacks
+class CartAnalog : public CartCommon
+{
+public:
+    CartAnalog();
+    ~CartAnalog() override;
+
+    void Reset() override;
+    void DoSavestate(Savestate* file) override;
+
+    // values should be -1.0..1.0
+    int SetInput(int num, float value) override;
+
+    u16 ROMRead(u32 addr) const override;
+
+private:
+    float X;
+    float Y;
 };
 
 class GBACartSlot
@@ -266,8 +350,8 @@ public:
     /// or \c nullptr if the cart slot was empty.
     std::unique_ptr<CartCommon> EjectCart() noexcept;
 
-    // TODO: make more flexible, support nonbinary inputs
     int SetInput(int num, bool pressed) noexcept;
+    int SetInput(int num, float value) noexcept;
 
     void SetOpenBusDecay(u16 val) noexcept { OpenBusDecay = val; }
 

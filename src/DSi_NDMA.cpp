@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2024 melonDS team
+    Copyright 2016-2026 melonDS team
 
     This file is part of melonDS.
 
@@ -127,17 +127,19 @@ void DSi_NDMA::WriteCnt(u32 val)
 
         if ((StartMode & 0x1F) == 0x10)
             Start();
+        else if (StartMode == 0x04 || StartMode == 0x24)
+            DSi.NDSCartSlots[0]->CheckDMA(CPU);
+        else if (StartMode == 0x05 || StartMode == 0x25)
+            DSi.NDSCartSlots[1]->CheckDMA(CPU);
         else if (StartMode == 0x0A)
             DSi.GPU.GPU3D.CheckFIFODMA();
 
         // TODO: unsupported start modes:
         // * timers (00-03)
-        // * camera (ARM9 0B)
-        // * microphone (ARM7 0C)
         // * NDS-wifi?? (ARM7 07, likely not working)
 
-        if (StartMode <= 0x03 || StartMode == 0x05 || (StartMode >= 0x0C && StartMode <= 0x0F) ||
-            (StartMode >= 0x20 && StartMode <= 0x23) || StartMode == 0x25 || StartMode == 0x27 || (StartMode >= 0x2C && StartMode <= 0x2F))
+        if (StartMode <= 0x03 || (StartMode >= 0x0C && StartMode <= 0x0F) ||
+            (StartMode >= 0x20 && StartMode <= 0x23) || StartMode == 0x27 || (StartMode >= 0x2D && StartMode <= 0x2F))
             Log(LogLevel::Warn, "UNIMPLEMENTED ARM%d NDMA%d START MODE %02X, %08X->%08X LEN=%d BLK=%d CNT=%08X\n",
                    CPU?7:9, Num, StartMode, SrcAddr, DstAddr, TotalLength, BlockLength, Cnt);
     }
@@ -270,11 +272,18 @@ void DSi_NDMA::Run9()
 
     if ((StartMode & 0x1F) == 0x10) // CHECKME
     {
+        // no repeat
         Cnt &= ~(1<<31);
         if (Cnt & (1<<30)) DSi.SetIRQ(0, IRQ_DSi_NDMA0 + Num);
     }
-    else if (!(Cnt & (1<<29)))
+    else if (Cnt & (1<<29))
     {
+        // repeat infinitely
+        if (Cnt & (1<<30)) DSi.SetIRQ(0, IRQ_DSi_NDMA0 + Num);
+    }
+    else
+    {
+        // repeat until total count is reached
         if (TotalRemCount == 0)
         {
             Cnt &= ~(1<<31);
@@ -285,6 +294,11 @@ void DSi_NDMA::Run9()
     Running = 0;
     InProgress = false;
     DSi.ResumeCPU(0, 1<<(Num+4));
+
+    if (StartMode == 0x04)
+        DSi.NDSCartSlots[0]->CheckDMA(0);
+    else if (StartMode == 0x05)
+        DSi.NDSCartSlots[1]->CheckDMA(0);
 }
 
 void DSi_NDMA::Run7()
@@ -359,11 +373,18 @@ void DSi_NDMA::Run7()
 
     if ((StartMode & 0x1F) == 0x10) // CHECKME
     {
+        // no repeat
         Cnt &= ~(1<<31);
         if (Cnt & (1<<30)) DSi.SetIRQ(1, IRQ_DSi_NDMA0 + Num);
     }
-    else if (!(Cnt & (1<<29)))
+    else if (Cnt & (1<<29))
     {
+        // repeat infinitely
+        if (Cnt & (1<<30)) DSi.SetIRQ(1, IRQ_DSi_NDMA0 + Num);
+    }
+    else
+    {
+        // repeat until total count is reached
         if (TotalRemCount == 0)
         {
             Cnt &= ~(1<<31);
@@ -377,6 +398,11 @@ void DSi_NDMA::Run7()
 
     DSi.AES.CheckInputDMA();
     DSi.AES.CheckOutputDMA();
+
+    if (StartMode == 0x24)
+        DSi.NDSCartSlots[0]->CheckDMA(1);
+    else if (StartMode == 0x25)
+        DSi.NDSCartSlots[1]->CheckDMA(1);
 }
 
 }

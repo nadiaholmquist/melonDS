@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2024 melonDS team
+    Copyright 2016-2026 melonDS team
 
     This file is part of melonDS.
 
@@ -110,6 +110,8 @@ DefaultList<bool> DefaultBools =
     {"JIT.FastMemory", true},
 #endif
 #endif
+    {"DSi.DSP.HLE", true},
+    {"Instance*.RTC.SyncToHost", true},
 };
 
 DefaultList<std::string> DefaultStrings =
@@ -169,6 +171,10 @@ LegacyEntry LegacyFile[] =
     {"HKKey_PowerButton",         0, "Keyboard.HK_PowerButton", true},
     {"HKKey_VolumeUp",            0, "Keyboard.HK_VolumeUp", true},
     {"HKKey_VolumeDown",          0, "Keyboard.HK_VolumeDown", true},
+    {"HKKey_GuitarGripGreen",     0, "Keyboard.HK_GuitarGripGreen", true},
+    {"HKKey_GuitarGripRed",       0, "Keyboard.HK_GuitarGripRed", true},
+    {"HKKey_GuitarGripYellow",    0, "Keyboard.HK_GuitarGripYellow", true},
+    {"HKKey_GuitarGripBlue",      0, "Keyboard.HK_GuitarGripBlue", true},
 
     {"HKJoy_Lid",                 0, "Joystick.HK_Lid", true},
     {"HKJoy_Mic",                 0, "Joystick.HK_Mic", true},
@@ -185,6 +191,10 @@ LegacyEntry LegacyFile[] =
     {"HKJoy_PowerButton",         0, "Joystick.HK_PowerButton", true},
     {"HKJoy_VolumeUp",            0, "Joystick.HK_VolumeUp", true},
     {"HKJoy_VolumeDown",          0, "Joystick.HK_VolumeDown", true},
+    {"HKJoy_GuitarGripGreen",     0, "Joystick.HK_GuitarGripGreen", true},
+    {"HKJoy_GuitarGripRed",       0, "Joystick.HK_GuitarGripRed", true},
+    {"HKJoy_GuitarGripYellow",    0, "Joystick.HK_GuitarGripYellow", true},
+    {"HKJoy_GuitarGripBlue",      0, "Joystick.HK_GuitarGripBlue", true},
 
     {"JoystickID", 0, "JoystickID", true},
 
@@ -231,6 +241,8 @@ LegacyEntry LegacyFile[] =
     {"BIOS7Path", 2, "DS.BIOS7Path", false},
     {"FirmwarePath", 2, "DS.FirmwarePath", false},
 
+    {"DSiExternalBIOSEnable", 1, "DSi.ExternalBIOSEnable", false},
+
     {"DSiBIOS9Path", 2, "DSi.BIOS9Path", false},
     {"DSiBIOS7Path", 2, "DSi.BIOS7Path", false},
     {"DSiFirmwarePath", 2, "DSi.FirmwarePath", false},
@@ -265,8 +277,6 @@ LegacyEntry LegacyFile[] =
     {"LANDevice", 2, "LAN.Device", false},
     {"DirectLAN", 1, "LAN.DirectMode", false},
 
-    {"SavStaRelocSRAM", 1, "Savestate.RelocSRAM", false},
-
     {"AudioInterp", 0, "Audio.Interpolation", false},
     {"AudioBitDepth", 0, "Audio.BitDepth", false},
     {"AudioVolume", 0, "Audio.Volume", true},
@@ -298,6 +308,7 @@ LegacyEntry LegacyFile[] =
     {"MouseHide",        1, "Mouse.Hide", false},
     {"MouseHideSeconds", 0, "Mouse.HideSeconds", false},
     {"PauseLostFocus",   1, "PauseLostFocus", false},
+    {"MuteFastForward",   1, "MuteFastForward", false},
     {"UITheme",          2, "UITheme", false},
 
     {"RTCOffset",       3, "RTC.Offset", true},
@@ -305,8 +316,6 @@ LegacyEntry LegacyFile[] =
     {"DSBatteryLevelOkay",   1, "DS.Battery.LevelOkay", true},
     {"DSiBatteryLevel",    0, "DSi.Battery.Level", true},
     {"DSiBatteryCharging", 1, "DSi.Battery.Charging", true},
-
-    {"DSiFullBIOSBoot", 1, "DSi.FullBIOSBoot", true},
 
 #ifdef GDBSTUB_ENABLED
     {"GdbEnabled", 1, "Gdb.Enabled", false},

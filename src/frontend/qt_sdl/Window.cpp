@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2024 melonDS team
+    Copyright 2016-2026 melonDS team
 
     This file is part of melonDS.
 
@@ -16,6 +16,7 @@
     with melonDS. If not, see http://www.gnu.org/licenses/.
 */
 
+#include "NDS.h"
 #include <stdlib.h>
 #include <time.h>
 #include <stdio.h>
@@ -40,16 +41,6 @@
 #include <QVector>
 #include <QCommandLineParser>
 #include <QDesktopServices>
-#ifndef _WIN32
-#include <QGuiApplication>
-#include <QSocketNotifier>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <signal.h>
-#ifndef APPLE
-#include <qpa/qplatformnativeinterface.h>
-#endif
-#endif
 
 #include "main.h"
 #include "CheatsDialog.h"
@@ -215,17 +206,6 @@ static bool FileIsSupportedFiletype(const QString& filename, bool insideArchive 
 }
 
 
-#ifndef _WIN32
-static int signalFd[2];
-QSocketNotifier *signalSn;
-
-static void signalHandler(int)
-{
-    char a = 1;
-    write(signalFd[0], &a, sizeof(a));
-}
-#endif
-
 
 MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
     QMainWindow(parent),
@@ -238,26 +218,6 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
     enabledSaved(false),
     focused(true)
 {
-#ifndef _WIN32
-    if (!parent)
-    {
-        if (socketpair(AF_UNIX, SOCK_STREAM, 0, signalFd))
-        {
-            qFatal("Couldn't create socketpair");
-        }
-
-        signalSn = new QSocketNotifier(signalFd[1], QSocketNotifier::Read, this);
-        connect(signalSn, SIGNAL(activated(int)), this, SLOT(onQuit()));
-
-        struct sigaction sa;
-
-        sa.sa_handler = signalHandler;
-        sigemptyset(&sa.sa_mask);
-        sa.sa_flags = 0;
-        sa.sa_flags |= SA_RESTART;
-        sigaction(SIGINT, &sa, 0);
-    }
-#endif
 
     showOSD = windowCfg.GetBool("ShowOSD");
 
@@ -320,7 +280,19 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
                 QMenu * submenu = menu->addMenu("Insert add-on cart");
                 QAction *act;
 
-                int addons[] = {GBAAddon_RAMExpansion, GBAAddon_RumblePak, GBAAddon_SolarSensorBoktai1, GBAAddon_SolarSensorBoktai2, GBAAddon_SolarSensorBoktai3, -1};
+                int addons[] = {
+                    GBAAddon_RAMExpansion,
+                    GBAAddon_RumblePak,
+                    GBAAddon_SolarSensorBoktai1,
+                    GBAAddon_SolarSensorBoktai2,
+                    GBAAddon_SolarSensorBoktai3,
+                    GBAAddon_MotionPakHomebrew,
+                    GBAAddon_MotionPakRetail,
+                    GBAAddon_GuitarGrip,
+                    GBAAddon_Analog,
+                    -1
+                };
+
                 for (int i = 0; addons[i] != -1; i++)
                 {
                     int addon = addons[i];
@@ -643,14 +615,6 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
             actPathSettings = menu->addAction("Path settings");
             connect(actPathSettings, &QAction::triggered, this, &MainWindow::onOpenPathSettings);
 
-            {
-                QMenu * submenu = menu->addMenu("Savestate settings");
-
-                actSavestateSRAMReloc = submenu->addAction("Separate savefiles");
-                actSavestateSRAMReloc->setCheckable(true);
-                connect(actSavestateSRAMReloc, &QAction::triggered, this, &MainWindow::onChangeSavestateSRAMReloc);
-            }
-
             menu->addSeparator();
 
             actLimitFramerate = menu->addAction("Limit framerate");
@@ -724,7 +688,7 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
         actStop->setEnabled(false);
         actFrameStep->setEnabled(false);
 
-        actDateTime->setEnabled(true);
+        //actDateTime->setEnabled(true);
         actPowerManagement->setEnabled(false);
 
         actEnableCheats->setEnabled(false);
@@ -735,8 +699,6 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
 
         actROMInfo->setEnabled(false);
         actRAMInfo->setEnabled(false);
-
-        actSavestateSRAMReloc->setChecked(globalCfg.GetBool("Savestate.RelocSRAM"));
 
         actScreenRotation[windowCfg.GetInt("ScreenRotation")]->setChecked(true);
 
@@ -819,12 +781,20 @@ void MainWindow::saveEnabled(bool enabled)
 
 void MainWindow::closeEvent(QCloseEvent* event)
 {
-    if (!emuInstance) return;
+    if (emuInstance)
+    {
+        if (windowID == 0)
+            emuInstance->saveEnabledWindows();
+        else
+            saveEnabled(false);
+    }
 
-    if (windowID == 0)
-        emuInstance->saveEnabledWindows();
-    else
-        saveEnabled(false);
+    // explicitly close children windows, so the OpenGL contexts get closed properly
+    auto childwins = findChildren<MainWindow *>(nullptr, Qt::FindDirectChildrenOnly);
+    for (auto child : childwins)
+        child->close();
+
+    if (!emuInstance) return;
 
     QByteArray geom = saveGeometry();
     QByteArray enc = geom.toBase64(QByteArray::Base64Encoding);
@@ -841,8 +811,9 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 void MainWindow::createScreenPanel()
 {
-    if (panel) delete panel;
+    auto oldpanel = panel;
     panel = nullptr;
+    if (oldpanel) delete oldpanel;
 
     hasOGL = globalCfg.GetBool("Screen.UseGL") ||
             (globalCfg.GetInt("3D.Renderer") != renderer3D_Software);
@@ -852,7 +823,10 @@ void MainWindow::createScreenPanel()
         ScreenPanelGL* panelGL = new ScreenPanelGL(this);
         panelGL->show();
 
-        panel = panelGL;
+        // make sure no GL context is in use by the emu thread
+        // otherwise we may fail to create a shared context
+        if (windowID != 0)
+            emuThread->borrowGL();
 
         // Check that creating the context hasn't failed
         if (panelGL->createContext() == false)
@@ -862,7 +836,15 @@ void MainWindow::createScreenPanel()
 
             globalCfg.SetBool("Screen.UseGL", false);
             globalCfg.SetInt("3D.Renderer", renderer3D_Software);
+
+            delete panelGL;
+            panelGL = nullptr;
         }
+
+        if (windowID != 0)
+            emuThread->returnGL();
+
+        panel = panelGL;
     }
 
     if (!hasOGL)
@@ -912,6 +894,7 @@ void MainWindow::setGLSwapInterval(int intv)
     if (!hasOGL) return;
 
     ScreenPanelGL* glpanel = static_cast<ScreenPanelGL*>(panel);
+    if (!glpanel) return;
     return glpanel->setSwapInterval(intv);
 }
 
@@ -920,15 +903,23 @@ void MainWindow::makeCurrentGL()
     if (!hasOGL) return;
 
     ScreenPanelGL* glpanel = static_cast<ScreenPanelGL*>(panel);
+    if (!glpanel) return;
     return glpanel->makeCurrentGL();
 }
 
-void MainWindow::drawScreenGL()
+void MainWindow::releaseGL()
 {
     if (!hasOGL) return;
 
     ScreenPanelGL* glpanel = static_cast<ScreenPanelGL*>(panel);
-    return glpanel->drawScreenGL();
+    if (!glpanel) return;
+    return glpanel->releaseGL();
+}
+
+void MainWindow::drawScreen()
+{
+    if (!panel) return;
+    return panel->drawScreen();
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* event)
@@ -936,7 +927,7 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
     if (event->isAutoRepeat()) return;
 
     // TODO!! REMOVE ME IN RELEASE BUILDS!!
-    //if (event->key() == Qt::Key_F11) emuThread->NDS->debug(0);
+    //if (event->key() == Qt::Key_F11) emuInstance->getNDS()->debug(0);
 
     emuInstance->onKeyPress(event);
 }
@@ -1033,7 +1024,7 @@ void MainWindow::onFocusIn()
 {
     focused = true;
     if (emuInstance)
-        emuInstance->audioMute();
+        emuInstance->updateAudioMuteByWindowFocus();
 }
 
 void MainWindow::onFocusOut()
@@ -1042,7 +1033,7 @@ void MainWindow::onFocusOut()
     // prevent use after free
     focused = false;
     if (emuInstance)
-        emuInstance->audioMute();
+        emuInstance->updateAudioMuteByWindowFocus();
 }
 
 void MainWindow::onAppStateChanged(Qt::ApplicationState state)
@@ -1076,7 +1067,7 @@ bool MainWindow::preloadROMs(QStringList file, QStringList gbafile, bool boot)
 {
     QString errorstr;
 
-    if (file.isEmpty() && gbafile.isEmpty())
+    if (file.isEmpty() && gbafile.isEmpty() && !boot)
         return false;
 
     if (!verifySetup())
@@ -1115,7 +1106,7 @@ bool MainWindow::preloadROMs(QStringList file, QStringList gbafile, bool boot)
                 return false;
             }
         }
-        
+
         recentFileList.removeAll(file.join("|"));
         recentFileList.prepend(file.join("|"));
         updateRecentFilesMenu();
@@ -1645,10 +1636,6 @@ void MainWindow::onImportSavefile()
 
 void MainWindow::onQuit()
 {
-#ifndef _WIN32
-    if (!parentWidget())
-        signalSn->setEnabled(false);
-#endif
     close();
 }
 
@@ -1693,6 +1680,15 @@ void MainWindow::onFrameStep()
 void MainWindow::onOpenDateTime()
 {
     DateTimeDialog* dlg = DateTimeDialog::openDlg(this);
+    connect(dlg, &DateTimeDialog::finished, this, &MainWindow::onDateTimeDialogFinished);
+}
+
+void MainWindow::onDateTimeDialogFinished(int res)
+{
+    if (!res) return;
+    if (!emuThread->emuIsActive()) return;
+
+    emuInstance->setDateTime();
 }
 
 void MainWindow::onOpenPowerManagement()
@@ -1950,7 +1946,7 @@ void MainWindow::onUpdateAudioSettings()
 
 void MainWindow::onAudioSettingsFinished(int res)
 {
-    //AudioInOut::UpdateSettings(*emuThread->NDS);
+    emuInstance->audioUpdateSettings();
 }
 
 void MainWindow::onOpenMPSettings()
@@ -1964,7 +1960,7 @@ void MainWindow::onOpenMPSettings()
 void MainWindow::onMPSettingsFinished(int res)
 {
     emuInstance->mpAudioMode = globalCfg.GetInt("MP.AudioMode");
-    emuInstance->audioMute();
+    emuInstance->updateAudioMuteByWindowFocus();
     MPInterface::Get().SetRecvTimeout(globalCfg.GetInt("MP.RecvTimeout"));
 
     emuThread->emuUnpause();
@@ -2007,11 +2003,6 @@ void MainWindow::onUpdateInterfaceSettings()
 void MainWindow::onInterfaceSettingsFinished(int res)
 {
     emuThread->emuUnpause();
-}
-
-void MainWindow::onChangeSavestateSRAMReloc(bool checked)
-{
-    globalCfg.SetBool("Savestate.RelocSRAM", checked);
 }
 
 void MainWindow::onChangeScreenSize()
@@ -2137,6 +2128,29 @@ void MainWindow::onChangeAudioSync(bool checked)
 
 void MainWindow::onTitleUpdate(QString title)
 {
+    if (!emuInstance) return;
+
+    int numinst = numEmuInstances();
+    int numwin = emuInstance->getNumWindows();
+    if ((numinst > 1) && (numwin > 1))
+    {
+        // add player/window prefix
+        QString prefix = QString("[p%1:w%2] ").arg(emuInstance->instanceID+1).arg(windowID+1);
+        title = prefix + title;
+    }
+    else if (numinst > 1)
+    {
+        // add player prefix
+        QString prefix = QString("[p%1] ").arg(emuInstance->instanceID+1);
+        title = prefix + title;
+    }
+    else if (numwin > 1)
+    {
+        // add window prefix
+        QString prefix = QString("[w%1] ").arg(windowID+1);
+        title = prefix + title;
+    }
+
     setWindowTitle(title);
 }
 
@@ -2175,7 +2189,13 @@ void MainWindow::onScreenEmphasisToggled()
     {
         currentSizing = screenSizing_EmphTop;
     }
+    else
+    {
+        // For any other sizing mode, switch to EmphTop as a sensible default
+        currentSizing = screenSizing_EmphTop;
+    }
     windowCfg.SetInt("ScreenSizing", currentSizing);
+    actScreenSizing[currentSizing]->setChecked(true);
 
     emit screenLayoutChange();
 }
@@ -2199,7 +2219,7 @@ void MainWindow::onEmuStart()
     actStop->setEnabled(true);
     actFrameStep->setEnabled(true);
 
-    actDateTime->setEnabled(false);
+    //actDateTime->setEnabled(false);
     actPowerManagement->setEnabled(true);
 
     actTitleManager->setEnabled(false);
@@ -2221,7 +2241,7 @@ void MainWindow::onEmuStop()
     actStop->setEnabled(false);
     actFrameStep->setEnabled(false);
 
-    actDateTime->setEnabled(true);
+    //actDateTime->setEnabled(true);
     actPowerManagement->setEnabled(false);
 
     actTitleManager->setEnabled(!globalCfg.GetString("DSi.NANDPath").empty());
@@ -2251,42 +2271,49 @@ void MainWindow::onUpdateVideoSettings(bool glchange)
     if (parentwin)
         return parentwin->onUpdateVideoSettings(glchange);
 
+    auto childwins = findChildren<MainWindow *>(nullptr);
+
     bool hadOGL = hasOGL;
     if (glchange)
     {
         emuThread->emuPause();
-        if (hadOGL) emuThread->deinitContext(windowID);
+        if (hadOGL)
+        {
+            emuThread->deinitContext(windowID);
+            for (auto child: childwins)
+            {
+                auto thread = child->getEmuInstance()->getEmuThread();
+                thread->deinitContext(child->windowID);
+            }
+        }
 
         createScreenPanel();
+        for (auto child: childwins)
+        {
+            child->createScreenPanel();
+        }
     }
 
     emuThread->updateVideoSettings();
-
-    if (glchange)
-    {
-        if (hasOGL) emuThread->initContext(windowID);
-    }
-
-    // update any child windows we have
-    auto childwins = findChildren<MainWindow *>(nullptr, Qt::FindDirectChildrenOnly);
     for (auto child: childwins)
     {
         // child windows may belong to a different instance
         // in that case we need to signal their thread appropriately
         auto thread = child->getEmuInstance()->getEmuThread();
-
-        if (glchange)
-        {
-            if (hadOGL) thread->deinitContext(child->windowID);
-            child->createScreenPanel();
-        }
-
         if (child->getWindowID() == 0)
             thread->updateVideoSettings();
+    }
 
-        if (glchange)
+    if (glchange)
+    {
+        if (hasOGL) 
         {
-            if (hasOGL) thread->initContext(child->windowID);
+            emuThread->initContext(windowID);
+            for (auto child: childwins)
+            {
+                auto thread = child->getEmuInstance()->getEmuThread();
+                thread->initContext(child->windowID);
+            }
         }
     }
 
