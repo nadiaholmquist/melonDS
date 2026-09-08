@@ -38,6 +38,11 @@
 			"description": "Use Qt 6 for the frontend.",
 			"dependencies": [
 				{
+					"name": "pcre2",
+					"default-features": false,
+					"features": []
+				},
+				{
 					"name": "qtbase",
 					"default-features": false,
 					"features": ["gui", "png", "thread", "widgets", "opengl", "zstd", "harfbuzz"]
